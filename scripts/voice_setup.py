@@ -1,4 +1,4 @@
-"""One-time setup and health check: `uv run python scripts/setup.py`. Safe to run again.
+"""One-time setup and health check: `uv run python scripts/voice_setup.py`. Safe to run again.
 
 Downloads the Kokoro voice files if missing, checks keys (names only, never values), the microphone,
 and the tools Evie drives. Does not change .env or install anything else.
