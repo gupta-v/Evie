@@ -38,6 +38,7 @@ src/evie/
   services/       the real work behind tools, same domains: music/ (termusic gRPC, TUI input, library),
                   web/, system/, voice/ (stt, tts)
   utils/          config.py (env settings), text.py (small shared helpers)
+scripts/         setup.py (download voice files, check keys/mic/tools), mic_check.py, voices_demo.py
 tests/
 docs/
 ```
