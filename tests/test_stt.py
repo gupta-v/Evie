@@ -164,3 +164,14 @@ def test_on_device_speech_is_tried_first_and_the_cloud_is_the_backup(monkeypatch
 
     monkeypatch.setattr(stt, "_transcribe_local", broken)
     assert stt.transcribe(b"", post=lambda *a, **k: R(200, "from the cloud")) == "from the cloud"
+
+
+def test_the_room_is_remembered_between_recordings():
+    from collections import deque
+
+    shared = deque(maxlen=100)
+    feed(stt.Gate(3, shared), [40] * 30)        # first "listening": learns the room
+    g = stt.Gate(3, shared)                     # next "listening"
+    assert g.threshold == 250                   # no slow start
+    feed(g, [3000] * 6)
+    assert g.spoke

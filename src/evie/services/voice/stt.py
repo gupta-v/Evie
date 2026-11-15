@@ -38,11 +38,12 @@ class Gate:
     a noisy PC mic (level 100-400 all the time) stays under it, and a mic that opens loud and settles
     over a second (Bluetooth headsets) adjusts within a few seconds."""
 
-    def __init__(self, quiet_blocks: int):
+    def __init__(self, quiet_blocks: int, noise=None):
         from collections import deque
 
         self.quiet_blocks = quiet_blocks
-        self._recent, self._noise = deque(maxlen=5), deque(maxlen=100)
+        # `noise` is shared between recordings so the room is learned once, not at every "listening"
+        self._recent, self._noise = deque(maxlen=5), noise if noise is not None else deque(maxlen=100)
         self.spoke, self.quiet, self.loud_blocks = False, 0, 0
 
     @property
@@ -80,21 +81,56 @@ def mic_device(setting, devices=None):
     raise SttError(f"No microphone matching '{setting}'.")
 
 
-def _mic_blocks():
-    """Mic blocks as int16 arrays. A callback feeds a queue, so waiting can be interrupted with Ctrl+C
-    (a blocking read inside the audio driver cannot) and a stalled device is noticed after 3 s."""
-    import queue
+class _Mic:
+    """One input stream kept open for the whole session. Reopening it at every "listening" made the mic
+    click, restarted Bluetooth headsets, and forgot the room's noise level, so speech in the first
+    seconds was missed. A callback feeds a queue so waiting can be interrupted with Ctrl+C and a stalled
+    device is noticed after 3 s."""
 
-    import sounddevice as sd
+    def __init__(self):
+        from collections import deque
 
-    q: queue.Queue = queue.Queue()
-    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=mic_device(config.MIC),
-                        callback=lambda data, frames, time_info, status: q.put(data.copy())):
+        self.stream, self.queue, self.noise = None, None, deque(maxlen=100)
+
+    def _open(self) -> None:
+        import queue
+
+        import sounddevice as sd
+
+        q: queue.Queue = queue.Queue()
+        self.stream = sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=mic_device(config.MIC),
+                                     callback=lambda data, frames, time_info, status: q.put(data.copy()))
+        self.stream.start()
+        self.queue = q
+
+    def close(self) -> None:
+        if self.stream is not None:
+            try:
+                self.stream.close()
+            except Exception:
+                pass
+        self.stream = self.queue = None
+
+    def blocks(self):
+        import queue
+
+        if self.stream is None:
+            self._open()
+        while not self.queue.empty():  # audio from while Evie was thinking or speaking is not for us
+            self.queue.get_nowait()
         while True:
             try:
-                yield q.get(timeout=3)
+                yield self.queue.get(timeout=3)
             except queue.Empty:
+                self.close()  # the next recording opens a fresh stream
                 raise SttError("The microphone stopped responding.") from None
+
+
+_mic = _Mic()
+
+
+def _mic_blocks():
+    return _mic.blocks()
 
 
 def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_seconds: float = 0.7, blocks=None) -> bytes:
@@ -108,7 +144,7 @@ def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_second
 
     recent = deque(maxlen=int(STEADY_SECONDS * RATE / _BLOCK))  # loudness while 'speaking'
     preroll = deque(maxlen=PREROLL_BLOCKS)
-    gate, chunks, peak, waited, dead = Gate(int(quiet_seconds * RATE / _BLOCK)), [], 0.0, 0, 0
+    gate, chunks, peak, waited, dead = Gate(int(quiet_seconds * RATE / _BLOCK), None if blocks is not None else _mic.noise), [], 0.0, 0, 0
     for block in (blocks if blocks is not None else _mic_blocks()):
         rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
         peak = max(peak, rms)

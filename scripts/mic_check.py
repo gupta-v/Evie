@@ -18,7 +18,9 @@ from evie.utils import config
 for i, d in enumerate(sd.query_devices()):
     if d["max_input_channels"] > 0:
         print(f"{i:3d}  {d['name']}")
-print(f"\nusing: {config.MIC if config.MIC is not None else 'system default'} -> device {stt.mic_device(config.MIC)}. Speak now (10 s):")
+dev = stt.mic_device(config.MIC)
+name = sd.query_devices(dev if dev is not None else sd.default.device[0])["name"]
+print(f"\nusing: {name} (device {dev if dev is not None else 'system default'}). Speak now (10 s):")
 gate, quiet_run, peak = stt.Gate(quiet_blocks=10**9), 0, 0.0
 for i, block in enumerate(stt._mic_blocks()):
     rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
