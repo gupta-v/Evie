@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from evie import config
+from evie.services.text import words
 
 EXTS = {".mp3", ".flac", ".opus", ".m4a", ".ogg", ".wav", ".aac", ".wma"}
 
@@ -23,9 +24,7 @@ class Match:
         return self.path.stem
 
 
-def _words(s: str) -> list[str]:
-    return re.findall(r"[^\W_]+", s.lower())  # letters and digits; underscores separate words
-
+_words = words
 
 def scan(root: Path | None = None) -> list[Path]:
     root = Path(root or config.MUSIC_DIR)

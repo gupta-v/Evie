@@ -37,6 +37,11 @@ def clean_title(raw: str) -> str:
     return t or raw.replace("_", " ").strip()
 
 
+def words(s: str) -> list[str]:
+    """Lowercase letters and digits; underscores and punctuation separate words."""
+    return re.findall(r"[^\W_]+", s.lower())
+
+
 def spoken_duration(mmss: str) -> str:
     """'04:03' -> '4:03'."""
     m, _, s = mmss.partition(":")

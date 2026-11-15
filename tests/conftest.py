@@ -77,7 +77,7 @@ def player():
     server.stop(0)
 
 
-_NEVER_IN_TESTS = {"wt", "wt.exe", "termusic", "termusic.exe", "termusic-server", "termusic-server.exe", "taskkill", "taskkill.exe"}
+_NEVER_IN_TESTS = {"explorer", "explorer.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe", "wt", "wt.exe", "termusic", "termusic.exe", "termusic-server", "termusic-server.exe", "taskkill", "taskkill.exe"}
 
 
 @pytest.fixture(autouse=True)
