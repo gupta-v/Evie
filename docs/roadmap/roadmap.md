@@ -14,7 +14,7 @@ Each step runs on its own. Tick when done.
 - [x] **0. Spike / verify (partly).** Pipecat 1.16.0 installs and imports on Python 3.12 / Windows. Ships services for Groq (LLM, STT, TTS), Google (LLM, STT, TTS), Anthropic, Fish, Piper, Kokoro, Whisper, plus `smallwebrtc` and `local` transports and Silero VAD. No built-in Edge TTS: write a small custom TTS service. Still to verify: live latency, Fish free-tier limits, Hermes decision, local audio transport on this PC (PyAudio).
 - [x] **1. Text brain.** `src/evie` package, `uv run evie`. Gemini (free) or Claude talker with own tool loop and `ToolRegistry`. Done when: type "what time is it", a tool answers.
 - [ ] **2. Termusic tools.** Copy `player.proto`, generate grpcio stubs. Tools: pause/play (check state first), next, previous, volume up/down, add to queue, clear, what's playing. Name to track via local search then `yt-dlp ytsearch1:`. Done when: type "add X, next, volume up" and music reacts.
-- [ ] **3. Fast router.** Local regex for music and volume, LLM fallback. Done when: "next" returns in <100 ms with no LLM call.
+- [x] **3. Fast router.** Local regex for music and volume, LLM fallback. Done when: "next" returns in <100 ms with no LLM call. (Built; "volume up N", mute and a live latency check are not done yet.)
 - [ ] **4. Voice.** Pipecat: Silero VAD, STT, TTS, push-to-talk, barge-in. Duck music while listening. Done when: step 3 works by voice.
 - [ ] **5. Two-speed brain.** Fast model talks. Heavy agent runs in background via `TaskManager` (JSON state, cancel). `notify()` to toast and ntfy. Done when: long task ends, phone buzzes.
 - [ ] **6. MCP.** Gmail and Calendar, read-only. Done when: "any unread mail?" works.

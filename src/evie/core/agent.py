@@ -3,7 +3,7 @@ import re
 
 import evie.tools  # noqa: F401  (registers tools)
 from evie import config
-from evie.core import registry
+from evie.core import registry, router
 
 STUCK = "I got stuck on that one."
 YES = re.compile(r"^\W*(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|confirm|haan)\b", re.I)
@@ -31,6 +31,10 @@ class Agent:
                 text = f"The user approved. Result of {name}: {out}. Tell them briefly."
             elif NO.match(text):
                 text = "The user declined. Acknowledge briefly."
+        else:
+            fast = router.route(text)
+            if fast:  # fixed command: run the tool, speak its result, skip the LLM
+                return registry.call(*fast)
         reply = self.provider.respond(text) or STUCK
         self.pending = registry.take_blocked()
         return reply
