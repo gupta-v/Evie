@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "anthropic>=2.8.0",
+    "ddgs>=9.16.1",
     "edge-tts>=7.3.1",
     "google-genai>=3.3.0",
     "grpcio>=1.85.1",

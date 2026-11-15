@@ -20,4 +20,5 @@ TERMUSIC_AUTOSTART = os.getenv("TERMUSIC_AUTOSTART", "1") == "1"
 # Open the termusic TUI window whenever Evie uses music (the TUI also starts the server). Turn off for gaming.
 TERMUSIC_SHOW_UI = os.getenv("TERMUSIC_SHOW_UI", "1") == "1"
 DEBUG = os.getenv("EVIE_DEBUG", "0") == "1"
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or None  # fast web search; keyless fallback is slow
 MUSIC_DIR = Path(os.getenv("EVIE_MUSIC_DIR") or Path.home() / "Music")

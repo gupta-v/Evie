@@ -41,9 +41,9 @@ def open_app(name: Annotated[str, Field(min_length=1)]) -> str:
 @tool
 def open_website(url: Annotated[str, Field(min_length=4)]) -> str:
     """Open a web page in the user's default browser. Use this for websites and web apps such as Gmail
-    (https://mail.google.com), Google Calendar (https://calendar.google.com), YouTube, GitHub, or a web
-    search (https://www.google.com/search?q=...). Add https:// when the user gives only a name like
-    youtube.com. Use open_app instead for installed desktop apps.
+    (https://mail.google.com), Google Calendar (https://calendar.google.com), YouTube or GitHub, only when
+    the user asks to open or see a page. Never use it to answer a question or run a search: use web_search.
+    Add https:// when the user gives only a name like youtube.com. Use open_app for installed desktop apps.
 
     Args:
         url: The full http or https address to open.

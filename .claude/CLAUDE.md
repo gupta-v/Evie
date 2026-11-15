@@ -55,6 +55,7 @@ Run: `uv run evie`. Tests: `uv run pytest`. Tools know nothing about the agent o
 `C:\Projects\Eva`, `C:\Projects\EDITH`, `C:\Projects\Senku`, `C:\Projects\termusic`. Their `.env` files hold keys: do not read or copy them.
 
 ## Working style
+- Design for a voice assistant, not by convention: if a pattern copied from other assistants or reference repos is slow or unnatural for voice, do not copy it. Reference projects are inspiration only. Judge every feature by speed and how it sounds spoken: answer, do not dump; few clean results, not raw lists; nothing should send the user to a screen they cannot look at.
 - Smallest change that fully solves the task. No unrequested features.
 - Unverified facts (Pipecat, Fish Audio, Hermes APIs) must be checked against current docs before use. Record results in `docs/decisions/decisions.md`.
 - New non-trivial logic gets one small test.
