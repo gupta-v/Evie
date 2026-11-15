@@ -32,21 +32,28 @@ class GeminiProvider:
         self.history: list = []
 
     def respond(self, text: str) -> str | None:
+        return "".join(self.stream(text)) or None  # None: nothing came back (tool-turn cap hit)
+
+    def stream(self, text: str):
+        """Yields reply text as Gemini produces it. Tool calls run between turns, so a reply that needs
+        a tool starts speaking only after the tool is done."""
         t = self.t
         self.history.append(t.Content(role="user", parts=[t.Part.from_text(text=text)]))
         for _ in range(config.MAX_TOOL_TURNS):
-            resp = self.client.models.generate_content(
-                model=self.model, contents=self.history, config=self.config
-            )
-            self.history.append(resp.candidates[0].content)
-            calls = resp.function_calls
+            parts, calls = [], []
+            for chunk in self.client.models.generate_content_stream(model=self.model, contents=self.history, config=self.config):
+                content = chunk.candidates[0].content if chunk.candidates else None
+                for part in (content.parts or []) if content else []:
+                    parts.append(part)
+                    if part.function_call:
+                        calls.append(part.function_call)
+                    elif part.text and not part.thought:
+                        yield part.text
+            self.history.append(t.Content(role="model", parts=parts))
             if not calls:
-                return resp.text or ""
-            parts = [
-                t.Part.from_function_response(
-                    name=c.name, response={"result": registry.call(c.name, dict(c.args or {}))}
-                )
+                return
+            responses = [
+                t.Part.from_function_response(name=c.name, response={"result": registry.call(c.name, dict(c.args or {}))})
                 for c in calls
             ]
-            self.history.append(t.Content(role="user", parts=parts))
-        return None  # tool-turn cap hit
+            self.history.append(t.Content(role="user", parts=responses))

@@ -93,3 +93,27 @@ def test_all_backends_failing_is_one_speakable_error(monkeypatch):
     monkeypatch.setattr(tts, "_BACKENDS", {"kokoro": (".wav", broken), "edge": (".mp3", broken)})
     with pytest.raises(tts.TtsError):
         tts.speak("Hello.", play=lambda p: None)
+
+
+def test_speaker_starts_a_sentence_before_the_reply_is_finished():
+    played, order = [], []
+    sp = tts.Speaker(synth=lambda t, p: open(p, "wb").write(t.encode()), play=lambda p: played.append(open(p, "rb").read().decode()))
+    sp.feed("Hello th")
+    sp.feed("ere. How are")
+    import time
+    time.sleep(0.3)
+    assert played == ["Hello there."]          # spoken while "How are you?" has not been written yet
+    sp.feed(" you?")
+    sp.finish()
+    assert played == ["Hello there.", "How are you?"]
+
+
+def test_a_long_unfinished_sentence_starts_at_its_first_comma():
+    played = []
+    sp = tts.Speaker(synth=lambda t, p: open(p, "wb").write(t.encode()), play=lambda p: played.append(open(p, "rb").read().decode()))
+    sp.feed("Coffee beans are actually seeds inside bright red berries, and in old Constantinople it was a reason for divorce")
+    import time
+    time.sleep(0.3)
+    assert played == ["Coffee beans are actually seeds inside bright red berries,"]
+    sp.finish()
+    assert played[1] == "and in old Constantinople it was a reason for divorce"

@@ -39,3 +39,17 @@ def test_agent_runs_fixed_command_without_the_llm(monkeypatch):
     monkeypatch.setattr(g, "GeminiProvider", NoLLM)
     monkeypatch.setattr(registry, "call", lambda name, args, approved=False: f"{name}{args}")
     assert agent_mod.Agent().respond("volume 40") == "music_set_volume{'level': 40}"
+
+
+def test_agent_streams_pieces_in_order_and_remembers_blocked_writes(monkeypatch):
+    from evie.core import agent as agent_mod, registry
+
+    class Streaming:
+        def __init__(self, model): pass
+        def stream(self, text):
+            yield "One. "
+            yield "Two."
+
+    import evie.providers.gemini as g
+    monkeypatch.setattr(g, "GeminiProvider", Streaming)
+    assert list(agent_mod.Agent().stream("tell me")) == ["One. ", "Two."]

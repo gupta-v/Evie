@@ -21,8 +21,9 @@ class Agent:
         self.provider = P(config.MODEL)
         self.pending: tuple[str, dict] | None = None  # a write call waiting for the user's yes
 
-    def respond(self, text: str) -> str:
-        """A blocked write tool is remembered; the user's next 'yes' runs it with approval."""
+    def stream(self, text: str):
+        """Yields the reply in pieces as the model produces them. A blocked write tool is remembered;
+        the user's next 'yes' runs it with approval."""
         if self.pending:
             name, args = self.pending
             self.pending = None
@@ -34,7 +35,18 @@ class Agent:
         else:
             fast = router.route(text)
             if fast:  # fixed command: run the tool, speak its result, skip the LLM
-                return registry.call(*fast)
-        reply = self.provider.respond(text) or STUCK
+                yield registry.call(*fast)
+                return
+        # providers without streaming (Claude, for now) give the whole reply as one piece
+        pieces = self.provider.stream(text) if hasattr(self.provider, "stream") else [self.provider.respond(text) or ""]
+        said = False
+        for piece in pieces:
+            if piece:
+                said = True
+                yield piece
+        if not said:
+            yield STUCK
         self.pending = registry.take_blocked()
-        return reply
+
+    def respond(self, text: str) -> str:
+        return "".join(self.stream(text))

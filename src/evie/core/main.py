@@ -12,7 +12,7 @@ def listen() -> str:
     """Wait (no key press) until speech starts, record it, return what was said ('' if it was noise)."""
     from evie.services.voice import stt
 
-    print("[listening...]")
+    print("[listening...]", flush=True)
     try:
         pcm = stt.record(wait_seconds=None)
         text = stt.transcribe(pcm) if pcm else ""
@@ -23,8 +23,24 @@ def listen() -> str:
         return ""
     _last_error[0] = None
     if text:
-        print(f"You: {text}")
+        print(f"You: {text}", flush=True)
     return text
+
+
+def say(agent: Agent, line: str) -> None:
+    """Send `line` to the brain and show and speak the reply while it is still being written."""
+    speaker = tts.Speaker() if config.SPEAK else None
+    print("Evie: ", end="", flush=True)
+    for piece in agent.stream(line):
+        print(piece, end="", flush=True)
+        if speaker:
+            speaker.feed(piece)
+    print(flush=True)
+    if speaker:
+        try:
+            speaker.finish()
+        except tts.TtsError as e:
+            print(f"[voice] {e}", flush=True)
 
 
 def main():
@@ -46,13 +62,7 @@ def main():
         except (EOFError, KeyboardInterrupt):
             break
         if line:
-            reply = agent.respond(line)
-            print(reply)
-            if config.SPEAK:
-                try:
-                    tts.speak(reply)
-                except tts.TtsError as e:
-                    print(f"[voice] {e}")
+            say(agent, line)
 
 
 if __name__ == "__main__":

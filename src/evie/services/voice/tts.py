@@ -101,20 +101,20 @@ def _mci(cmd: str) -> None:
         raise TtsError(f"audio playback failed (mci {err})")
 
 
-def sentences(text: str) -> list[str]:
-    """Split at sentence ends so the first one can start playing while the rest are still being made."""
-    return [s for s in re.split(r"(?<=[.!?])\s+", text) if s]
-
-
-def _to_file(text: str, synth, suffix: str) -> str:
-    fd, path = tempfile.mkstemp(suffix=suffix)
-    os.close(fd)
-    try:
-        synth(text, path)
-    except Exception as e:
-        _remove(path)
-        raise TtsError("I couldn't make the voice.") from e
-    return path
+def _make(text: str, chain) -> str:
+    """Audio file for `text` from the first backend in `chain` that works."""
+    error = TtsError("No voice is configured.")
+    for suffix, fn in chain:
+        fd, path = tempfile.mkstemp(suffix=suffix)
+        os.close(fd)
+        try:
+            fn(text, path)
+            return path
+        except Exception as e:
+            _remove(path)
+            error = TtsError("I couldn't make the voice.")
+            error.__cause__ = e
+    raise error
 
 
 def _remove(path: str) -> None:
@@ -124,37 +124,69 @@ def _remove(path: str) -> None:
         pass
 
 
-def _speak_with(parts: list[str], synth, suffix: str, play) -> None:
-    files = []
-    try:
-        with ThreadPoolExecutor(max_workers=min(len(parts), 4)) as pool:
-            files = [pool.submit(_to_file, s, synth, suffix) for s in parts]
-            for f in files:
-                path = f.result()
-                try:
-                    (play or _play)(path)
-                finally:
-                    _remove(path)
-    finally:  # after the pool has finished everything: remove files made but never played
-        for f in files:
-            if f.done() and not f.cancelled() and not f.exception():
-                _remove(f.result())
+CLAUSE_MIN, CLAUSE_SKIP = 50, 20  # unfinished text this long is cut at the first comma after 20 characters
+
+
+class Speaker:
+    """Speaks text as it arrives: feed() pieces while the reply is still being written, finish() at the end.
+    Each complete sentence is made right away (in parallel) and played in order, so the first sentence is
+    audible while the model is still writing the next. `synth(text, path)` and `play(path)` are injectable."""
+
+    def __init__(self, synth=None, play=None):
+        import queue
+
+        self._chain = [(".mp3", synth)] if synth else [_BACKENDS[n] for n in config.TTS_ORDER if n in _BACKENDS]
+        self._play = play or _play
+        self._pool = ThreadPoolExecutor(max_workers=3)
+        self._queue: "queue.Queue" = queue.Queue()
+        self._buf, self.error = "", None
+        self._player = threading.Thread(target=self._run, daemon=True)
+        self._player.start()
+
+    def feed(self, text: str) -> None:
+        self._buf += text
+        *done, self._buf = re.split(r"(?<=[.!?])\s+", self._buf)  # the last piece may be an unfinished sentence
+        for sentence in done:
+            self._submit(sentence)
+        while len(self._buf) >= CLAUSE_MIN and (m := re.search(r"[,;:]\s", self._buf[CLAUSE_SKIP:])):
+            cut = CLAUSE_SKIP + m.end()  # a long sentence still being written: start on its first clause
+            self._submit(self._buf[:cut])
+            self._buf = self._buf[cut:]
+
+    def finish(self) -> None:
+        """Speak what is left, wait until everything has been said, raise the first problem."""
+        self._submit(self._buf)
+        self._buf = ""
+        self._queue.put(None)
+        self._player.join()
+        self._pool.shutdown()
+        if self.error:
+            raise self.error
+
+    def _submit(self, sentence: str) -> None:
+        sentence = clean(sentence)
+        if sentence:
+            self._queue.put(self._pool.submit(_make, sentence, self._chain))
+
+    def _run(self) -> None:
+        while (future := self._queue.get()) is not None:
+            try:
+                path = future.result()
+            except TtsError as e:
+                self.error = self.error or e
+                continue  # keep going: later sentences may work
+            try:
+                if not self.error:
+                    self._play(path)
+            finally:
+                _remove(path)
 
 
 def speak(text: str, synth=None, play=None) -> None:
-    """Say `text` and return when it finishes, using the first backend that works.
-    `synth(text, path)` (replaces the backends) and `play(path)` are injectable for tests."""
-    parts = sentences(clean(text))
-    if not parts:
-        return
-    chain = [(".mp3", synth)] if synth else [_BACKENDS[n] for n in config.TTS_ORDER if n in _BACKENDS]
-    for i, (suffix, fn) in enumerate(chain):
-        try:
-            return _speak_with(parts, fn, suffix, play)
-        except TtsError:
-            if i == len(chain) - 1:
-                raise
-    raise TtsError("No voice is configured.")
+    """Say `text` and return when it finishes (a reply that is already complete)."""
+    speaker = Speaker(synth, play)
+    speaker.feed(text)
+    speaker.finish()
 
 
 def _play(path: str) -> None:
