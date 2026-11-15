@@ -24,7 +24,7 @@ class Match:
 
 
 def _words(s: str) -> list[str]:
-    return re.findall(r"\w+", s.lower())
+    return re.findall(r"[^\W_]+", s.lower())  # letters and digits; underscores separate words
 
 
 def scan(root: Path | None = None) -> list[Path]:

@@ -198,3 +198,10 @@ def test_client_add_errors_when_server_silently_ignores_the_track(player):
     player.ignore_adds = True
     with pytest.raises(Exception, match="didn't accept"):
         player.client.add("C:/nope/missing.mp3")
+
+
+def test_underscored_file_names_match_spaced_queries(lib):
+    # real library has yt-dlp style names: Arz_Kiya_Hai_Official_Video_Coke_Studio_Bharat.opus
+    (lib / "Arz_Kiya_Hai_Official_Video_Coke_Studio_Bharat.opus").write_bytes(b"x")
+    top = library.search("arz kiya hai", lib)[0]
+    assert top.hit == 1.0 and top.title.startswith("Arz_Kiya_Hai")
