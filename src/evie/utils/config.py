@@ -19,7 +19,8 @@ TERMUSIC_SHOW_UI = os.getenv("TERMUSIC_SHOW_UI", "1") == "1"
 GROQ_API_KEYS = [k for k in (os.getenv(n) for n in ("GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2")) if k]  # rotated on rate limits
 _mic = os.getenv("EVIE_MIC") or None  # input device: index or name part; default is the system default
 MIC = int(_mic) if _mic and _mic.isdigit() else _mic
-STT_ORDER = [n.strip() for n in (os.getenv("EVIE_STT") or "local,groq").split(",") if n.strip()]  # speech-to-text backends, tried in order
+STT_ORDER = [n.strip() for n in (os.getenv("EVIE_STT") or "groq,local").split(",") if n.strip()]  # speech-to-text backends, tried in order. groq = cloud, most accurate on the user's voice (0.4 s); local = on this PC
+GROQ_STT_MODEL = os.getenv("EVIE_GROQ_MODEL") or "whisper-large-v3-turbo"  # or whisper-large-v3
 STT_MODEL = os.getenv("EVIE_STT_MODEL") or "base"  # on-device Whisper. base = Hindi+English (Hinglish), ~0.7 s; base.en = English only; small = ~2 s and writes Hindi in Devanagari
 STT_LANGS = tuple(x.strip() for x in (os.getenv("EVIE_LANGS") or "en,hi").split(",") if x.strip())  # with EVIE_LANG=auto: speech detected as any other language is treated as noise
 MODELS_DIR = Path(__file__).resolve().parents[3] / "models"

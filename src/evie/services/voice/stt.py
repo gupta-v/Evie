@@ -20,7 +20,7 @@ STEADY_SECONDS, STEADY_VARIATION = 5, 0.2  # speech rises and falls; a hum, fan 
 PREROLL_BLOCKS = 12  # about 0.4 s kept from before the level crossed the threshold: soft starts ("hey") would be cut
 MIN_LOUD_BLOCKS = 8  # about 0.25 s of real speech: shorter is a click or a cough, not a command
 _URL = "https://api.groq.com/openai/v1/audio/transcriptions"
-_MODEL = "whisper-large-v3-turbo"
+_MODEL = config.GROQ_STT_MODEL
 _COOLDOWN = 300  # seconds a rejected or rate-limited key is skipped
 _dead: dict[str, float] = {}
 last_levels = {"loudest": 0.0, "needed": 0.0}  # from the latest recording, to explain 'heard nothing'
@@ -194,6 +194,7 @@ def is_phantom(text: str) -> bool:
 _local = None
 _local_lock = threading.Lock()
 _hint_cache: list[str] = []
+_STYLE = "Hey Evie. What's the weather in Kolhapur? Play Anuv Jain. Search something. Next song. Volume up. "  # shows Whisper the kind of sentences to expect
 
 
 def _prompt() -> str:
@@ -202,9 +203,9 @@ def _prompt() -> str:
         try:
             from evie.services.music import library
 
-            _hint_cache.append("Hey Evie. " + library.vocab_hint())
+            _hint_cache.append(_STYLE + library.vocab_hint())
         except Exception:
-            _hint_cache.append("Hey Evie.")  # no library is not a reason to fail
+            _hint_cache.append(_STYLE)  # no library is not a reason to fail
     return _hint_cache[0]
 
 
@@ -245,8 +246,21 @@ def _transcribe_local(pcm: bytes) -> str:
                                               condition_on_previous_text=False, initial_prompt=_prompt())
     text = " ".join(s.text.strip() for s in segments).strip()
     if _language() is None and info.language not in config.STT_LANGS:
-        return ""  # Whisper "hears" Japanese or Welsh in noise: only the languages you speak count
+        # Whisper's guess is often wrong for short Indian-accented English ("Bulgarian", "Croatian"):
+        # decode again as English instead of throwing the sentence away. Noise comes back empty or as a phantom.
+        segments, _ = _load_local().transcribe(audio, language="en", beam_size=1,
+                                               condition_on_previous_text=False, initial_prompt=_prompt())
+        text = " ".join(s.text.strip() for s in segments).strip()
     return text
+
+
+def _snap_names(text: str) -> str:
+    try:
+        from evie.services.music import library
+
+        return library.correct(text)
+    except Exception:
+        return text  # no library is not a reason to lose the sentence
 
 
 def transcribe(pcm: bytes, post=None) -> str:
@@ -265,7 +279,7 @@ def transcribe(pcm: bytes, post=None) -> str:
             error = SttError("The on-device speech model failed.")
             error.__cause__ = e
             continue
-        return "" if is_phantom(text) else text
+        return "" if is_phantom(text) else _snap_names(text)
     raise error
 
 

@@ -13,7 +13,7 @@ Repo: github.com/gupta-v/Evie. Work happens on **`dev`** (PR #1 `dev` -> `main` 
 Built and verified live:
 - **Text and voice REPL** (`uv run evie`, `uv run evie --voice`). Voice is hands-free: the mic stays open, no key press, no wake word yet.
 - **Voice turn:** mic -> loudness gate -> speech-to-text -> print "You:" -> router or brain -> reply streams out printed **and spoken at the same time**. Timers are printed per stage.
-- **STT:** on-device Whisper (`faster-whisper`, `base` multilingual, language auto limited to en/hi, so Hinglish works) first, Groq cloud Whisper as backup (keys rotate on rate limit). The music library's artist and song names are fed to Whisper as a spelling hint.
+- **STT:** Groq cloud Whisper (`large-v3-turbo`, ~0.4 s, keys rotate on rate limit) first, on-device `faster-whisper` `base` as backup (decision 20: chosen from `scripts/stt_compare.py` on the user's voice; local base was clearly worse). A prompt of example commands plus library names biases Whisper, and `library.correct()` snaps near-miss names ("Anubjain") to the library's spelling. Hinglish works (language auto).
 - **TTS:** local Kokoro (`af_sarah`, int8 ONNX) first, Edge neural voices as fallback. Reply is spoken sentence by sentence (long sentences from the first comma) while still being written.
 - **Brain:** Gemini (streaming) with a model fallback chain, because the free tier allows ~5 requests/min per model. Claude provider exists but is untested (no API credit) and not streaming.
 - **Tools:** music (termusic over gRPC: playback, volume, songs by name, online search/download through termusic's own `s` UI), weather, web search, Wikipedia, open app, open website, time, clipboard.
@@ -75,14 +75,14 @@ Tools know nothing about the agent or voice code. A new tool = a function with `
 - **Gemini free tier:** ~5 requests/min *per model*; a tool question costs 2. The SDK silently retried for 9-16 s and then crashed. Now `attempts=1`, a comma list in `EVIE_MODEL` is the fallback chain, and a spoken "brain is busy" replaces the crash.
 - **Microphones (user's PC):** default input is a Bluetooth headset (WH-CH520). Its mic only works in call mode and sometimes returns pure silence (levels 0-1); `EVIE_MIC=Headset` worked once something else held the call link. The Realtek PC mic works but is quiet and noisy (100-400 level), so the gate threshold comes from a rolling median of the room, not the quietest moment. Check with `scripts/mic_check.py`.
 - **Whisper invents text from noise** ("Thank you", "ご視聴ありがとうございました"): handled by phantom phrases, a 0.25 s minimum, a steady-noise cut, and by dropping any language other than en/hi.
-- **Privacy:** hands-free with no wake word means anything above the threshold is transcribed. On-device STT keeps it local; Groq and Google (stt_compare) send audio out.
+- **Privacy:** hands-free with no wake word means anything above the threshold is transcribed, and with the default `EVIE_STT=groq,local` that audio goes to Groq. `EVIE_STT=local,groq` keeps it on the PC at lower accuracy. A wake word is the real fix.
 - **Windows:** console is cp1252 (output is forced to UTF-8). `uv sync` fails while `evie.exe` runs; never run `uv sync --no-install-project` (it uninstalls Evie from the venv). Bash heredocs that write `b"\0"` can produce real NUL bytes in files: check with a byte count, use `bytes(2)`.
 - **Bluetooth headset audio** drops to low quality while its mic is open (call mode). Cannot be fixed in code.
 - **termusic:** `s` search only works with the library pane focused; the screen-scraping parser is pinned only by `tests/fixtures/termusic_search_screen.txt`. Opening apps/browsers steals focus (a gaming mode must disable that).
 - `models/` (Kokoro, Whisper) is gitignored; `voice_setup.py` fetches it. protobuf must stay 6.x (Pipecat pin).
 
 ## Next steps (suggested order)
-1. Decide the STT default from the user's own results of `scripts/stt_compare.py` (on-device base vs small vs Groq vs Google). Local base misheard "Jo Tum Mere Ho" and "play"; accuracy is the main complaint now.
+1. Check the STT accuracy now (Groq first + name snapping) on the user's voice; names not in the library are still guesses. Ideas if still weak: a wake word so less audio is sent, Groq `whisper-large-v3`, a bigger on-device model on GPU.
 2. Pause/duck termusic while listening and speaking (roadmap 4.4); music through speakers is picked up as speech.
 3. Cap conversation history (grows without limit); record routed turns in history.
 4. Wake word or a hotkey (decision 9 and 13: Rust ear with openWakeWord), plus a mute switch.

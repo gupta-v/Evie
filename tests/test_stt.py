@@ -177,18 +177,19 @@ def test_the_room_is_remembered_between_recordings():
     assert g.spoke
 
 
-def test_auto_language_only_accepts_the_languages_you_speak(monkeypatch):
+def test_a_wrong_language_guess_is_decoded_again_as_english(monkeypatch):
     from types import SimpleNamespace as NS
 
     monkeypatch.setattr(config, "STT_LANGUAGE", "auto")
     monkeypatch.setattr(config, "STT_LANGS", ("en", "hi"))
+    seen = []
 
-    def fake(lang, text):
-        model = NS(transcribe=lambda audio, **k: ([NS(text=text)], NS(language=lang)))
-        monkeypatch.setattr(stt, "_load_local", lambda: model)
+    def transcribe(audio, language, **k):
+        seen.append(language)
+        if language is None:                      # first pass: auto-detect says Bulgarian
+            return [NS(text="Watch the weather")], NS(language="bg")
+        return [NS(text="What's the weather")], NS(language=language)
 
-    pcm = bytes(2) * 100
-    fake("hi", " anuv jain ka gaana chalao ")
-    assert stt._transcribe_local(pcm) == "anuv jain ka gaana chalao"
-    fake("ja", "ご視聴ありがとうございました")
-    assert stt._transcribe_local(pcm) == ""
+    monkeypatch.setattr(stt, "_load_local", lambda: NS(transcribe=transcribe))
+    assert stt._transcribe_local(bytes(2) * 100) == "What's the weather"
+    assert seen == [None, "en"]

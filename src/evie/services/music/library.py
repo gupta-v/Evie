@@ -70,3 +70,57 @@ def vocab_hint(root: Path | None = None, max_chars: int = 400) -> str:
             break
         out.append(n)
     return ", ".join(out)
+
+
+_names_cache: dict[str, tuple[float, dict[str, str]]] = {}
+
+
+def _names(root: Path | None = None) -> dict[str, str]:
+    """{letters-only lowercase key: proper spelling} for every artist and short title in the library (1 min cache)."""
+    import time
+
+    from evie.utils.text import clean_title
+
+    k = str(root or config.MUSIC_DIR)
+    if k in _names_cache and time.monotonic() - _names_cache[k][0] < 60:
+        return _names_cache[k][1]
+    out: dict[str, str] = {}
+    for p in scan(root):
+        title, _, who = p.stem.rpartition(" - ")
+        if not title:
+            title, who = p.stem, ""
+        for name in [clean_title(title), *[a.strip() for a in who.split(",")]]:
+            key = re.sub(r"[^a-z0-9]", "", name.lower())
+            if len(key) >= 5 and len(name.split()) <= 4:
+                out.setdefault(key, name)
+    _names_cache[k] = (time.monotonic(), out)
+    return out
+
+
+def correct(text: str, root: Path | None = None, cutoff: float = 0.82) -> str:
+    """Snap near-miss names in speech-to-text output to the library's spelling: "Anubjain" or "Anup Jain"
+    become "Anuv Jain", "Le Jyotum Mereho" becomes "Jo Tum Mere Ho". Windows of 3, 2 and 1 words are compared
+    on letters only; at least 5 letters and a close match (difflib ratio >= cutoff), so ordinary words stay.
+
+    shortcut: spelling similarity only (no phonetics), and a name must be in the library to be fixed."""
+    import difflib
+
+    names = _names(root)
+    keys = list(names)
+    words, out, i = text.split(), [], 0
+    while i < len(words):
+        for n in (3, 2, 1):
+            chunk = words[i:i + n]
+            key = re.sub(r"[^a-z0-9]", "", " ".join(chunk).lower())
+            if len(chunk) < n or len(key) < 5:
+                continue
+            hit = key if key in names else next(iter(difflib.get_close_matches(key, keys, 1, cutoff)), None)
+            if hit:
+                tail = re.search(r"[.,!?]+$", chunk[-1])
+                out.append(names[hit] + (tail.group() if tail else ""))
+                i += n
+                break
+        else:
+            out.append(words[i])
+            i += 1
+    return " ".join(out)
