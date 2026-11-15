@@ -69,7 +69,7 @@ def test_a_limited_key_is_skipped_on_the_next_call(monkeypatch):
 
 
 def test_phantom_phrases_from_near_silence_are_dropped():
-    assert stt.is_phantom("Thank you.") and stt.is_phantom(" you ")
+    assert stt.is_phantom("Thank you.") and stt.is_phantom(" you ") and stt.is_phantom("Thank you for watching!")
     assert not stt.is_phantom("thank you for the music")
 
 
@@ -93,7 +93,7 @@ def _blocks(level, n):
 def test_record_returns_the_utterance_and_stops_after_quiet():
     audio = _blocks(40, 20) + _blocks(3000, 20) + _blocks(40, 40)   # room, speech, quiet
     pcm = stt.record(blocks=iter(audio))
-    assert len(pcm) == (20 + 33) * 480 * 2  # speech plus the second of quiet that ended it
+    assert len(pcm) == (stt.PREROLL_BLOCKS + 20 + 33) * 480 * 2  # lead-in, speech, and the second of quiet that ended it
 
 
 def test_record_ignores_a_blip():
@@ -102,7 +102,7 @@ def test_record_ignores_a_blip():
 
 def test_a_click_then_real_speech_returns_the_speech():
     audio = _blocks(40, 15) + _blocks(9000, 1) + _blocks(40, 40) + _blocks(3000, 20) + _blocks(40, 40)
-    assert len(stt.record(blocks=iter(audio))) == (20 + 33) * 480 * 2
+    assert len(stt.record(blocks=iter(audio))) == (stt.PREROLL_BLOCKS + 20 + 33) * 480 * 2
 
 
 def test_a_mic_that_gives_only_silence_is_an_error_not_a_freeze():
@@ -127,3 +127,15 @@ def test_mic_device_resolves_a_name_to_the_first_input_with_it():
     assert stt.mic_device(None, devs) is None and stt.mic_device(7, devs) == 7
     with pytest.raises(stt.SttError):
         stt.mic_device("nothing", devs)
+
+
+def test_the_spoken_language_is_sent_to_whisper(monkeypatch):
+    monkeypatch.setattr(config, "GROQ_API_KEYS", ["k"])
+    monkeypatch.setattr(config, "STT_LANGUAGE", "hi")
+    seen = {}
+
+    def post(url, headers, data, **k):
+        seen.update(data)
+        return R(200, "namaste")
+
+    assert stt.transcribe(bytes(2), post=post) == "namaste" and seen["language"] == "hi"

@@ -16,6 +16,7 @@ from evie.utils import config
 RATE = 16000
 _BLOCK = 480  # 30 ms
 STEADY_SECONDS, STEADY_VARIATION = 5, 0.2  # speech rises and falls; a hum, fan or music bed stays flat
+PREROLL_BLOCKS = 12  # about 0.4 s kept from before the level crossed the threshold: soft starts ("hey") would be cut
 MIN_LOUD_BLOCKS = 8  # about 0.25 s of real speech: shorter is a click or a cough, not a command
 _URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 _MODEL = "whisper-large-v3-turbo"
@@ -93,6 +94,7 @@ def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_second
     import numpy as np
 
     recent = deque(maxlen=int(STEADY_SECONDS * RATE / _BLOCK))  # loudness while 'speaking'
+    preroll = deque(maxlen=PREROLL_BLOCKS)
     gate, chunks, peak, waited, dead = Gate(int(quiet_seconds * RATE / _BLOCK)), [], 0.0, 0, 0
     for block in (blocks if blocks is not None else _mic_blocks()):
         rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
@@ -100,9 +102,12 @@ def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_second
         dead = dead + 1 if rms <= 1 else 0
         if dead > 5 * RATE / _BLOCK:
             raise SttError("The microphone is giving only silence. Is it muted? (A Bluetooth headset may need EVIE_MIC set to another mic.)")
+        was_speaking = gate.spoke
         done = gate.update(rms)
         last_levels.update(loudest=peak, needed=gate.threshold)
         if gate.spoke:
+            if not was_speaking:
+                chunks.extend(preroll)
             chunks.append(block.tobytes())
             recent.append(rms)
             if len(recent) == recent.maxlen and np.std(recent) < STEADY_VARIATION * np.mean(recent):
@@ -113,6 +118,7 @@ def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_second
             elif done or len(chunks) >= max_seconds * RATE / _BLOCK:
                 break
         else:
+            preroll.append(block.tobytes())
             waited += 1
             if wait_seconds is not None and waited > wait_seconds * RATE / _BLOCK:
                 return b""
@@ -129,7 +135,7 @@ def _wav(pcm: bytes) -> bytes:
     return buf.getvalue()
 
 
-_PHANTOMS = {"thank you", "thanks for watching", "you", "bye", "okay"}  # what Whisper invents from near-silence
+_PHANTOMS = {"thank you", "thanks for watching", "thank you for watching", "thanks", "you", "bye", "okay"}  # what Whisper invents from near-silence
 
 
 def is_phantom(text: str) -> bool:
@@ -149,7 +155,7 @@ def transcribe(pcm: bytes, post=None) -> str:
         try:
             r = (post or httpx.post)(
                 _URL, headers={"Authorization": f"Bearer {key}"}, timeout=15,
-                files={"file": ("speech.wav", wav, "audio/wav")}, data={"model": _MODEL, "response_format": "text"},
+                files={"file": ("speech.wav", wav, "audio/wav")}, data={"model": _MODEL, "response_format": "text", "language": config.STT_LANGUAGE, "prompt": "Hey Evie."},
             )
         except httpx.HTTPError as e:
             raise SttError("I couldn't reach the speech service.") from e

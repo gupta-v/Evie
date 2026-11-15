@@ -10,6 +10,7 @@ Set in `.env` (kept across runs) or for one run in PowerShell: `$env:NAME="value
 | `EVIE_TTS` | `kokoro,edge` | Voice backends in order; the next is tried if one fails. `kokoro` alone = fully local |
 | `EVIE_KOKORO_VOICE` | `af_sarah` | Local voice. Try `af_heart`, `af_bella`, `bf_emma`. Hear them: `scripts/voices_demo.py` |
 | `EVIE_VOICE` | `en-IN-NeerjaNeural` | The online Edge voice (used only as fallback) |
+| `EVIE_LANG` | `en` | Language you speak (`hi` for Hindi, ...). Fixing it stops Whisper guessing other languages from noise |
 | `EVIE_MIC` | system default | Microphone: a device number or part of its name (list: `scripts/mic_check.py`) |
 | `EVIE_THRESHOLD` | learned | Fixed speech loudness (try 400 to 2000). Unset: about 3x the quietest level the mic has shown, min 250. See `scripts/mic_check.py` |
 | `EVIE_LOCATION` | `Mumbai` | City used when you do not name one |

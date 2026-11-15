@@ -18,6 +18,7 @@ TERMUSIC_SHOW_UI = os.getenv("TERMUSIC_SHOW_UI", "1") == "1"
 GROQ_API_KEYS = [k for k in (os.getenv(n) for n in ("GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2")) if k]  # rotated on rate limits
 _mic = os.getenv("EVIE_MIC") or None  # input device: index or name part; default is the system default
 MIC = int(_mic) if _mic and _mic.isdigit() else _mic
+STT_LANGUAGE = os.getenv("EVIE_LANG") or "en"  # what you speak (ISO code, e.g. hi); stops Whisper guessing Japanese from noise
 THRESHOLD = float(os.getenv("EVIE_THRESHOLD") or 0) or None  # fixed speech level; unset = learn the room
 SPEAK = os.getenv("EVIE_SPEAK", "0") == "1"  # read replies aloud
 VOICE = os.getenv("EVIE_VOICE") or "en-IN-NeerjaNeural"  # any Edge voice name
