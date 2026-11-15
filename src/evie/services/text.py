@@ -37,6 +37,18 @@ def clean_title(raw: str) -> str:
     return t or raw.replace("_", " ").strip()
 
 
+def shorten(text: str, limit: int) -> str:
+    """Cut `text` to about `limit` characters at a sentence end if there is one, else at a word."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    stop = max(head.rfind(". "), head.rfind("! "), head.rfind("? "))
+    if stop > limit // 2:
+        return head[: stop + 1]
+    return head.rsplit(" ", 1)[0].rstrip(",;:- ") + "..."
+
+
 def words(s: str) -> list[str]:
     """Lowercase letters and digits; underscores and punctuation separate words."""
     return re.findall(r"[^\W_]+", s.lower())

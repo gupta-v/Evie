@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 from evie import config
-from evie.services.text import clean_title
+from evie.services.text import clean_title, shorten
 
 SNIPPET_CHARS = 170
 _ADS = ("/aclick", "ad_domain=", "ad_provider=", "doubleclick.net", "googleadservices.com")
@@ -62,13 +62,6 @@ def _ddgs(query: str, n: int) -> list[dict]:
     raise last
 
 
-def _short(text: str, limit: int = SNIPPET_CHARS) -> str:
-    text = " ".join(text.split())
-    if len(text) <= limit:
-        return text
-    return text[:limit].rsplit(" ", 1)[0].rstrip(",;:- ") + "..."
-
-
 def search(query: str, n: int = 4, raw=None, tavily=None) -> Result:
     """`raw(query, n) -> rows` and `tavily(query, n, key)` are injectable for tests."""
     try:
@@ -85,7 +78,7 @@ def search(query: str, n: int = 4, raw=None, tavily=None) -> Result:
         if not site or any(a in url for a in _ADS) or site in seen:
             continue
         seen.add(site)
-        hits.append(Hit(clean_title(r.get("title", "")), site, _short(r.get("body", ""))))
+        hits.append(Hit(clean_title(r.get("title", "")), site, shorten(r.get("body", ""), SNIPPET_CHARS)))
         if len(hits) == n:
             break
-    return Result(_short(answer, 420) if answer else None, hits)
+    return Result(shorten(answer, 420) if answer else None, hits)

@@ -4,7 +4,7 @@ from typing import Annotated
 from pydantic import Field
 
 from evie.core.registry import tool
-from evie.services import websearch
+from evie.services import websearch, wikipedia as wiki
 
 
 @tool
@@ -26,3 +26,18 @@ def web_search(query: Annotated[str, Field(min_length=2)]) -> str:
     lines = [f"Answer: {res.answer}"] if res.answer else []
     lines += [f"{i}. {h.title} ({h.site}): {h.snippet}" for i, h in enumerate(res.hits, 1)]
     return "\n".join(lines)
+
+
+@tool
+def wikipedia(topic: Annotated[str, Field(min_length=2)]) -> str:
+    """Look up a person, place, concept or thing on Wikipedia and answer from the summary. Use this
+    for stable facts and definitions (who is, what is, where is). For news, prices, products or
+    anything recent use web_search instead. Answer in one or two spoken sentences.
+
+    Args:
+        topic: The name of the person, place or thing to look up.
+    """
+    try:
+        return wiki.summary(topic)
+    except wiki.WikipediaError as e:
+        return str(e)

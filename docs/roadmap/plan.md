@@ -103,6 +103,7 @@ Done when: "any unread mail?" works.
 - One small test per non-trivial module.
 
 ## Status log
+- 2026-11-15: `wikipedia(topic)` tool via LangChain WikipediaAPIWrapper; shared `text.shorten` (sentence-aware); REPL output forced to UTF-8 (a non-ASCII answer crashed the Windows cp1252 console). Verified live: facts -> Wikipedia, recent events -> web_search. 125 tests. Still no TAVILY_API_KEY: keyless search failed intermittently again.
 - 2026-11-15: `get_weather(location=Mumbai)` in tools/basic.py, services/weather.py: Open-Meteo (free, no key), place lookup cached per session, one spoken-style line. Default city from `EVIE_LOCATION` (tool description still says Mumbai). Verified live (Mumbai, Pune, London); ~3-4 s per answered turn, mostly the two model calls. 119 tests.
 - 2026-11-15: `web_search` (services/websearch.py, tools/web.py): answers instead of opening a browser. Tavily when `TAVILY_API_KEY` is set (not yet verified live), keyless ddgs fallback with one retry (verified: ~5 s for a full answered turn, flaky). Ads filtered, one result per site, short snippets. 113 tests. Principle recorded: design for voice, do not copy conventions.
 - 2026-11-15: `open_website(url)`: opens http(s) links in the user's default browser (Thorium here) via `webbrowser`. Only http/https; bare domains like youtube.com get https://; anything else (javascript:, ms-settings:, file:, ftp:) is refused. Tests cannot open a real browser. Verified live with Gmail. 106 tests.
