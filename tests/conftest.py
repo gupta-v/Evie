@@ -71,6 +71,31 @@ def player():
     rpc.add_MusicPlayerServicer_to_server(fake, server)
     port = server.add_insecure_port("127.0.0.1:0")
     server.start()
-    fake.client = Termusic(f"127.0.0.1:{port}")
+    # TUI reported as already open and the opener fails loudly: a test must never launch a real window
+    fake.client = Termusic(f"127.0.0.1:{port}", tui_check=lambda: True, tui_opener=lambda: pytest.fail("test tried to open a real TUI"))
     yield fake
     server.stop(0)
+
+
+_NEVER_IN_TESTS = {"wt", "wt.exe", "termusic", "termusic.exe", "termusic-server", "termusic-server.exe", "taskkill", "taskkill.exe"}
+
+
+@pytest.fixture(autouse=True)
+def no_real_processes(monkeypatch):
+    """Tests must never open windows or kill processes on the real machine (they once opened three TUIs).
+    A test that really needs to see a launch replaces subprocess.Popen/run itself."""
+    import os
+    import subprocess
+
+    real_popen, real_run = subprocess.Popen, subprocess.run
+
+    def guarded(real):
+        def inner(cmd, *a, **k):
+            exe = os.path.basename(str(cmd[0] if isinstance(cmd, (list, tuple)) else cmd)).lower()
+            if exe in _NEVER_IN_TESTS:
+                pytest.fail(f"test tried to run a real process: {exe}")
+            return real(cmd, *a, **k)
+        return inner
+
+    monkeypatch.setattr(subprocess, "Popen", guarded(real_popen))
+    monkeypatch.setattr(subprocess, "run", guarded(real_run))

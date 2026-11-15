@@ -8,7 +8,7 @@ from pydantic import Field
 
 from evie import config
 from evie.core.registry import tool
-from evie.services import library, tui_input
+from evie.services import library, tui_input, watcher
 from evie.services.termusic import Termusic, TermusicError
 
 _client: Termusic | None = None
@@ -245,16 +245,29 @@ def music_queue_song(name: Annotated[str, Field(min_length=1)]) -> str:
     return f"added to the queue: {song.title}"
 
 
+def _announce(msg: str) -> None:
+    print("[Evie]", msg)  # shortcut: stdout until voice/notify exists
+
+
+def _on_downloaded(path: Path) -> None:
+    try:
+        _announce(f"Downloaded {path.stem}. {_queue_and_play(path)}")
+    except TermusicError as e:
+        _announce(str(e))
+
+
 @tool
 @_speakable
 def music_search_online(query: Annotated[str, Field(min_length=1)]) -> str:
     """Open termusic's own YouTube search for a song the library does not have, only after the user
-    agrees to search. The user picks and downloads the result in the termusic window. If this reports
-    an error, say what it said and stop; do not try another way to download.
+    agrees to search. The user picks and downloads the result in the termusic window; Evie then adds
+    the new song to the queue and plays it by itself. If this reports an error, say what it said and
+    stop; do not try another way to download.
 
     Args:
         query: Song title and artist to search for.
     """
     _c().open_ui()
     tui_input.youtube_search(query)
-    return f"Opened termusic's YouTube search for {query}. The user picks the result in the window."
+    watcher.watch_new_song(_on_downloaded)
+    return f"Opened termusic's YouTube search for {query}. The user picks a result there; it will play once downloaded."

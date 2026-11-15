@@ -179,7 +179,7 @@ def test_open_tui_prefers_windows_terminal_for_cover_art(monkeypatch):
     monkeypatch.setattr(t.shutil, "which", lambda n: {"termusic": "C:/s/termusic.exe", "wt": "C:/w/wt.exe"}.get(n))
     monkeypatch.setattr(t.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
     t.open_tui()
-    assert launched == [["C:/w/wt.exe", "-w", "new", "new-tab", "--title", "Evie Termusic", "--suppressApplicationTitle", "--", "C:/s/termusic.exe"]]
+    assert launched == [["C:/w/wt.exe", "-w", "new", "C:/s/termusic.exe"]]
 
 
 def test_open_tui_falls_back_to_plain_console_without_wt(monkeypatch):
@@ -211,3 +211,28 @@ def test_tui_relaunched_after_grace_if_user_closed_it(player, monkeypatch):
     monkeypatch.setattr(t, "UI_GRACE", 0)  # grace over: the window is really gone
     assert c.open_ui() == "opened"
     assert opened == [1, 1]
+
+
+def test_tui_pids_parses_tasklist_csv_and_ignores_the_server(monkeypatch):
+    import subprocess
+
+    import evie.services.termusic as t
+
+    rows = ['"termusic.exe","25040","Console","1","6,304 K"', '"termusic.exe","10428","Console","1","6,300 K"']
+    csv_out = "\n".join(rows) + "\n"
+    monkeypatch.setattr(t.shutil, "which", lambda n: "tasklist")
+    monkeypatch.setattr(t.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, csv_out, ""))
+    assert t.tui_pids() == [10428, 25040] and t.tui_running()
+    none = "INFO: No tasks are running which match the specified criteria."
+    monkeypatch.setattr(t.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, none, ""))
+    assert t.tui_pids() == [] and not t.tui_running()
+
+
+def test_guard_blocks_launching_real_windows_or_killing_processes():
+    import subprocess
+
+    for exe in ("wt.exe", "C:/s/termusic.exe", "taskkill"):
+        with pytest.raises(pytest.fail.Exception, match="real process"):
+            subprocess.Popen([exe])
+    with pytest.raises(pytest.fail.Exception, match="real process"):
+        subprocess.run(["taskkill", "/F", "/IM", "termusic*"])

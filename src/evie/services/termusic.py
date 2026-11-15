@@ -5,6 +5,7 @@ Termusic facts this relies on (lib/proto/player.proto, server.rs):
 - TogglePause flips state, so play/pause read the status first.
 - The queue takes a path or URL, not a song name.
 """
+import csv
 import shutil
 import subprocess
 import time
@@ -40,12 +41,18 @@ def start_server() -> None:
     )
 
 
-def tui_running() -> bool:
+def tui_pids() -> list[int]:
+    """Process ids of running termusic TUIs (the shim and the real exe both show up), oldest first."""
     exe = shutil.which("tasklist")
     if not exe:
-        return False
-    out = subprocess.run([exe, "/FI", "IMAGENAME eq termusic.exe", "/NH"], capture_output=True, text=True, timeout=10)
-    return "termusic.exe" in out.stdout.lower()
+        return []
+    out = subprocess.run([exe, "/FI", "IMAGENAME eq termusic.exe", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=10)
+    rows = csv.reader(out.stdout.splitlines())
+    return sorted(int(r[1]) for r in rows if len(r) > 1 and r[0].lower() == "termusic.exe")
+
+
+def tui_running() -> bool:
+    return bool(tui_pids())
 
 
 def open_tui() -> None:
@@ -58,7 +65,7 @@ def open_tui() -> None:
         raise TermusicError("I can't find termusic on this PC.")
     wt = shutil.which("wt")
     if wt:
-        subprocess.Popen([wt, "-w", "new", "new-tab", "--title", "Evie Termusic", "--suppressApplicationTitle", "--", exe])
+        subprocess.Popen([wt, "-w", "new", exe])
     else:
         subprocess.Popen([exe], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
 

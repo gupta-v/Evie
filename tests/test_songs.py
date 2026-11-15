@@ -86,51 +86,46 @@ def test_play_song_with_several_matches_asks_which(lib, wired):
 
 # --- online search is termusic's own 's' feature, typed into its window ---
 
-class FakeKeys:
-    """Stands in for pyautogui + pygetwindow so no real keys are ever sent in tests."""
-
-    def __init__(self, title="Evie Termusic", found=True, active_ok=True):
-        self.typed, self.found, self.active_ok, self.title = [], found, active_ok, title
-
-    def install(self, monkeypatch):
-        import sys
-        import types
-
-        win = types.SimpleNamespace(title=self.title, activate=lambda: None)
-        gw = types.SimpleNamespace(
-            getWindowsWithTitle=lambda t: [win] if self.found else [],
-            getActiveWindow=lambda: win if self.active_ok else types.SimpleNamespace(title="Some Game"),
-        )
-        pag = types.SimpleNamespace(
-            press=lambda k: self.typed.append(("press", k)),
-            write=lambda text, interval=0: self.typed.append(("write", text)),
-        )
-        monkeypatch.setitem(sys.modules, "pygetwindow", gw)
-        monkeypatch.setitem(sys.modules, "pyautogui", pag)
-        monkeypatch.setattr(tui_input.time, "sleep", lambda s: None)
+@pytest.fixture
+def keys(monkeypatch):
+    """No real keys are ever sent: records what would be typed and which process gets it."""
+    sent = []
+    monkeypatch.setattr(tui_input, "tui_pids", lambda: [111, 222])
+    monkeypatch.setattr(tui_input.console_input, "send_keys", lambda pid, k, pause_after_first=0: sent.append((pid, k)))
+    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: sent.append(("watching", cb)))
+    return sent
 
 
-def test_search_online_opens_tui_then_types_s_query_enter(wired, monkeypatch):
-    keys = FakeKeys()
-    keys.install(monkeypatch)
-    out = registry.call("music_search_online", {"query": "i guess krsna"})
-    assert keys.typed == [("press", "s"), ("write", "i guess krsna"), ("press", "enter")]
-    assert "Opened termusic's YouTube search" in out
+def test_search_online_types_into_newest_tui_in_background_and_starts_watching(wired, keys):
+    out = registry.call("music_search_online", {"query": "hola amigo"})
+    assert keys[0] == (222, ["s", *"hola amigo", "<enter>"])  # no window focus involved
+    assert keys[1][0] == "watching" and "Opened termusic's YouTube search" in out
 
 
-def test_search_online_types_nothing_if_termusic_window_is_not_in_front(wired, monkeypatch):
-    keys = FakeKeys(active_ok=False)  # e.g. a game has focus
-    keys.install(monkeypatch)
-    out = registry.call("music_search_online", {"query": "i guess"})
-    assert keys.typed == [] and "typed nothing" in out
+def test_search_online_reports_no_tui(wired, monkeypatch):
+    monkeypatch.setattr(tui_input, "tui_pids", lambda: [])
+    assert "can't find the termusic window" in registry.call("music_search_online", {"query": "x"})
 
 
-def test_search_online_reports_missing_window_and_non_ascii(wired, monkeypatch):
-    keys = FakeKeys(found=False)
-    keys.install(monkeypatch)
-    assert "can't find the termusic window" in registry.call("music_search_online", {"query": "i guess"})
-    assert "plain English" in registry.call("music_search_online", {"query": "अरज"})
-    assert keys.typed == []
+def test_search_online_reports_typing_failure_without_starting_a_watch(wired, monkeypatch):
+    def boom(pid, k, pause_after_first=0):
+        raise RuntimeError("cannot attach")
+
+    monkeypatch.setattr(tui_input, "tui_pids", lambda: [5])
+    monkeypatch.setattr(tui_input.console_input, "send_keys", boom)
+    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: pytest.fail("must not watch"))
+    out = registry.call("music_search_online", {"query": "x"})
+    assert "couldn't type into termusic" in out and "cannot attach" in out
+
+
+def test_downloaded_song_is_queued_and_played(lib, wired, monkeypatch):
+    said = []
+    monkeypatch.setattr(music, "_announce", said.append)
+    song = lib / "Hola Amigo.mp3"
+    song.write_bytes(b"x")
+    music._on_downloaded(song)
+    assert len(wired.tracks) == 1 and "PlaySpecific:0" in wired.calls
+    assert said == ["Downloaded Hola Amigo. playing"]
 
 
 # --- approval gate: any write tool needs the user's yes ---
