@@ -51,6 +51,10 @@ class FakePlayer(rpc.MusicPlayerServicer):
             self.tracks.clear()
         return pb.Empty()
 
+    def QuitServer(self, req, ctx):
+        self.calls.append("QuitServer")
+        return pb.Empty()
+
     def PlaySpecific(self, req, ctx):
         self.calls.append(f"PlaySpecific:{req.track_index}")
         self.index, self.status = req.track_index, 1

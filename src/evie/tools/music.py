@@ -34,6 +34,31 @@ def _speakable(fn):
 _TIMES = {"times": {"type": "integer", "description": "How many 5-point steps. Default 1."}}
 
 
+@tool(
+    "music_start",
+    "Start the music player (termusic, 'terminal music', the music app) if it is not running, then play. "
+    "Use when the user says start, open or launch terminal music, termusic or the music player.",
+    {},
+    fast=True,
+)
+@_speakable
+def music_start() -> str:
+    _c().status()  # a down server is started by the client on first call
+    return _c().play()
+
+
+@tool(
+    "music_stop_player",
+    "Stop and shut down the music player (termusic, 'terminal music'). Use when the user says "
+    "stop, quit, close, kill or shut down termusic or the music player. Not for pausing.",
+    {},
+    fast=True,
+)
+@_speakable
+def music_stop_player() -> str:
+    return f"music player {_c().stop_server()}"
+
+
 @tool("music_play", "Start or resume music playback.", {}, fast=True)
 @_speakable
 def music_play() -> str:

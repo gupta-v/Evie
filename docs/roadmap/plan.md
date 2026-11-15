@@ -103,6 +103,7 @@ Done when: "any unread mail?" works.
 - One small test per non-trivial module.
 
 ## Status log
+- 2026-11-15: verified live against real termusic: "start terminal music" auto-starts the server and plays, "what is playing" works, "stop termusic" quits gracefully then force-kills termusic* (native equivalent of the PowerShell `termusic-kill-server` profile function). `music_start` and `music_stop_player` tools added, `TERMUSIC_AUTOSTART` config, 23 tests. Known gap: status gives track number, not title (protocol has no title).
 - 2026-11-15: step 2.3 done: `tools/music.py` (12 tools; transport and volume marked fast), registry gained `optional` args, 17 tests green, Gemini accepts schemas and relays the server-down message. Real termusic-server not tested yet.
 - 2026-11-15: step 2.1 (proto stubs, protobuf 6.31 gencode) and 2.2 (`services/termusic.py` client + fake-server tests, 10 tests green) done. Not yet run against the real termusic-server.
 - 2026-11-15: foundation decisions added (daemon, wake word, tool contract, game safety). Step 1b added.

@@ -5,6 +5,11 @@ Termusic facts this relies on (lib/proto/player.proto, server.rs):
 - TogglePause flips state, so play/pause read the status first.
 - The queue takes a path or URL, not a song name.
 """
+import shutil
+import subprocess
+import time
+from typing import Callable
+
 import grpc
 
 from evie import config
@@ -14,26 +19,102 @@ from evie.services.termusic_pb import player_pb2_grpc as rpc
 STATUS = {0: "stopped", 1: "playing", 2: "paused"}
 VOLUME_STEP = 5
 RPC_TIMEOUT = 3.0
+START_WAIT = 10.0
 
 
 class TermusicError(Exception):
     """Server unreachable or call failed. Message is safe to read aloud."""
 
 
+def start_server() -> None:
+    """Launch termusic-server detached, with no console window. Argv list, never a shell string."""
+    exe = shutil.which("termusic-server")
+    if not exe:
+        raise TermusicError("I can't find termusic-server on this PC.")
+    flags = sum(getattr(subprocess, f, 0) for f in ("DETACHED_PROCESS", "CREATE_NEW_PROCESS_GROUP", "CREATE_NO_WINDOW"))
+    subprocess.Popen(
+        [exe], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags
+    )
+
+
+def kill_processes() -> bool:
+    """Force-kill every termusic* process (same effect as the PowerShell `termusic-kill-server`).
+    True if something was killed. Argv list, no shell."""
+    exe = shutil.which("taskkill")
+    if not exe:
+        raise TermusicError("I can't stop the music player: taskkill is missing.")
+    r = subprocess.run([exe, "/F", "/IM", "termusic*"], capture_output=True, timeout=10)
+    return r.returncode == 0
+
+
 class Termusic:
-    def __init__(self, addr: str | None = None):
+    def __init__(
+        self,
+        addr: str | None = None,
+        starter: Callable[[], None] | None = None,
+        autostart: bool | None = None,
+        killer: Callable[[], bool] | None = None,
+    ):
         self.addr = addr or config.TERMUSIC_ADDR
+        self.autostart = config.TERMUSIC_AUTOSTART if autostart is None else autostart
+        self.starter = starter or start_server
+        self.killer = killer or kill_processes
+        self._channel: grpc.Channel | None = None
         self._stub: rpc.MusicPlayerStub | None = None
+        self._start_tried = False
+
+    def _connect(self) -> rpc.MusicPlayerStub:
+        if self._stub is None:
+            self._channel = grpc.insecure_channel(self.addr)
+            self._stub = rpc.MusicPlayerStub(self._channel)
+        return self._stub
+
+    def _down(self, e: grpc.RpcError) -> bool:
+        return e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED)
+
+    def _ensure_server(self) -> None:
+        """Start the server once, then wait for the channel. Raises if it still isn't up."""
+        if not self.autostart or self._start_tried:
+            raise TermusicError("The music player isn't running. Start termusic-server.")
+        self._start_tried = True
+        self.starter()
+        self._connect()
+        try:
+            grpc.channel_ready_future(self._channel).result(timeout=START_WAIT)
+        except grpc.FutureTimeoutError as e:
+            raise TermusicError("I tried to start the music player but it didn't come up.") from e
 
     def _call(self, method: str, request=None):
-        if self._stub is None:
-            self._stub = rpc.MusicPlayerStub(grpc.insecure_channel(self.addr))
+        request = request or pb.Empty()
         try:
-            return getattr(self._stub, method)(request or pb.Empty(), timeout=RPC_TIMEOUT)
+            return getattr(self._connect(), method)(request, timeout=RPC_TIMEOUT)
         except grpc.RpcError as e:
-            if e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED):
-                raise TermusicError("The music player isn't running. Start termusic-server.") from e
-            raise TermusicError(f"Music player error: {e.details()}") from e
+            if not self._down(e):
+                raise TermusicError(f"Music player error: {e.details()}") from e
+        self._ensure_server()
+        try:
+            return getattr(self._connect(), method)(request, timeout=RPC_TIMEOUT)
+        except grpc.RpcError as e:
+            raise TermusicError(
+                "The music player isn't running. Start termusic-server." if self._down(e) else f"Music player error: {e.details()}"
+            ) from e
+
+    # --- lifecycle ---
+    def stop_server(self) -> str:
+        """Ask the server to quit, then force-kill leftover termusic* processes. Never auto-starts."""
+        graceful = False
+        try:
+            self._connect().QuitServer(pb.Empty(), timeout=RPC_TIMEOUT)
+            graceful = True
+            time.sleep(0.5)
+        except grpc.RpcError:
+            pass  # already down, or went away mid-call
+        killed = self.killer()
+        if self._channel is not None:
+            self._channel.close()
+        self._channel = self._stub = None
+        self._start_tried = False  # allow a later start
+        return "stopped" if graceful or killed else "wasn't running"
 
     # --- state ---
     def status(self) -> dict:
