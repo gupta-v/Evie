@@ -102,3 +102,71 @@ def test_stop_when_not_running_reports_it_and_never_autostarts():
     c = Termusic("127.0.0.1:1", starter=lambda: started.append(1), autostart=True, killer=lambda: False)
     assert c.stop_server() == "wasn't running"
     assert started == []
+
+
+def test_show_ui_opens_tui_once_on_first_use_and_not_a_headless_server(player):
+    opened, started = [], []
+    c = Termusic(
+        player.client.addr, show_ui=True, starter=lambda: started.append(1),
+        tui_opener=lambda: opened.append(1), tui_check=lambda: bool(opened),
+    )
+    c.status()
+    c.status()
+    assert opened == [1] and started == []
+
+
+def test_show_ui_skips_opening_when_tui_already_running(player):
+    opened = []
+    c = Termusic(player.client.addr, show_ui=True, tui_opener=lambda: opened.append(1), tui_check=lambda: True)
+    c.status()
+    assert opened == []
+
+
+def test_show_ui_server_down_waits_for_tui_instead_of_starting_headless():
+    started, opened = [], []
+    c = Termusic(
+        "127.0.0.1:1", show_ui=True, autostart=True, starter=lambda: started.append(1),
+        tui_opener=lambda: opened.append(1), tui_check=lambda: False,
+    )
+    import evie.services.termusic as t
+
+    t.START_WAIT = 0.5
+    with pytest.raises(TermusicError):
+        c.status()
+    assert opened == [1] and started == []
+
+
+def test_stop_makes_next_command_reopen_the_tui(player):
+    opened = []
+    c = Termusic(player.client.addr, show_ui=True, killer=lambda: True,
+                 tui_opener=lambda: opened.append(1), tui_check=lambda: False)
+    c.status()
+    c.stop_server()
+    c.status()
+    assert opened == [1, 1]
+
+
+def test_play_after_fresh_open_restarts_at_first_track_not_saved_position(player):
+    c = Termusic(player.client.addr, show_ui=True, tui_opener=lambda: None, tui_check=lambda: False)
+    c.add("C:/m/a.mp3")
+    c.add("C:/m/b.mp3")
+    player.status, player.index = 1, 1  # server resumed on track 2 by itself
+    assert c.play() == "playing"
+    assert "PlaySpecific:0" in player.calls
+
+
+def test_play_while_playing_later_leaves_it_alone(player):
+    c = Termusic(player.client.addr)
+    c.add("C:/m/a.mp3")
+    player.status, player.index = 1, 0
+    assert c.play() == "already playing"
+    assert player.calls == []
+
+
+def test_play_track_picks_position_and_validates(player):
+    c = Termusic(player.client.addr)
+    c.add("C:/m/a.mp3")
+    c.add("C:/m/b.mp3")
+    assert c.play_track(2) == "playing track 2"
+    assert "PlaySpecific:1" in player.calls
+    assert c.play_track(9) == "the queue has 2 tracks"

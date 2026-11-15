@@ -4,6 +4,7 @@ from typing import Annotated
 
 from pydantic import Field
 
+from evie import config
 from evie.core.registry import tool
 from evie.services.termusic import Termusic, TermusicError
 
@@ -19,7 +20,7 @@ def set_client(c: Termusic | None) -> None:
 def _c() -> Termusic:
     global _client
     if _client is None:
-        _client = Termusic()
+        _client = Termusic(show_ui=config.TERMUSIC_SHOW_UI)
     return _client
 
 
@@ -56,8 +57,19 @@ def music_stop_player() -> str:
 
 @tool(fast=True)
 @_speakable
+def music_play_track(number: Annotated[int, Field(ge=1)]) -> str:
+    """Play a specific song in the queue by its position, for example the 3rd song.
+
+    Args:
+        number: Queue position, starting at 1.
+    """
+    return _c().play_track(number)
+
+
+@tool(fast=True)
+@_speakable
 def music_play() -> str:
-    """Start or resume music playback."""
+    """Start or resume music playback. If the player was just opened or stopped, begins with the first song."""
     return _c().play()
 
 

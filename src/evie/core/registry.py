@@ -16,6 +16,7 @@ LangChain has no notion of risk or speed, so our `tool` adds two flags, kept in 
 copied to `tool.metadata`: `risk` ("read" or "write") and `fast` (eligible for the fast router).
 The approval gate and router read them, so adding a tool never touches the brain.
 """
+import sys
 from dataclasses import dataclass
 from typing import Callable
 
@@ -23,6 +24,8 @@ from langchain_core.tools import BaseTool
 from langchain_core.tools import tool as lc_tool
 from langchain_core.utils.function_calling import convert_to_openai_function
 from pydantic import ValidationError
+
+from evie import config
 
 NEEDS_APPROVAL = "needs approval: this action changes something. Ask the user to confirm."
 
@@ -71,6 +74,13 @@ def meta(name: str) -> Meta | None:
 
 
 def call(name: str, args: dict, *, approved: bool = False) -> str:
+    out = _call(name, args, approved)
+    if config.DEBUG:
+        print(f"[tool] {name}({args}) -> {out}", file=sys.stderr)
+    return out
+
+
+def _call(name: str, args: dict, approved: bool) -> str:
     if name not in _TOOLS:
         return f"error: unknown tool {name}"
     if _TOOLS[name]["meta"].risk == "write" and not approved:

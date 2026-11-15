@@ -16,3 +16,6 @@ SYSTEM_PROMPT = (
 MAX_TOOL_TURNS = 5
 TERMUSIC_ADDR = os.getenv("TERMUSIC_ADDR", "[::1]:5101")
 TERMUSIC_AUTOSTART = os.getenv("TERMUSIC_AUTOSTART", "1") == "1"
+# Open the termusic TUI window whenever Evie uses music (the TUI also starts the server). Turn off for gaming.
+TERMUSIC_SHOW_UI = os.getenv("TERMUSIC_SHOW_UI", "1") == "1"
+DEBUG = os.getenv("EVIE_DEBUG", "0") == "1"

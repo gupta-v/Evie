@@ -74,6 +74,7 @@ class Termusic:
         killer: Callable[[], bool] | None = None,
         tui_opener: Callable[[], None] | None = None,
         tui_check: Callable[[], bool] | None = None,
+        show_ui: bool = False,
     ):
         self.addr = addr or config.TERMUSIC_ADDR
         self.autostart = config.TERMUSIC_AUTOSTART if autostart is None else autostart
@@ -81,9 +82,12 @@ class Termusic:
         self.killer = killer or kill_processes
         self.tui_opener = tui_opener or open_tui
         self.tui_check = tui_check or tui_running
+        self.show_ui = show_ui  # False by default so tests never open a real window
+        self._ui_checked = False
         self._channel: grpc.Channel | None = None
         self._stub: rpc.MusicPlayerStub | None = None
         self._start_tried = False
+        self._fresh = False  # Evie just brought the player up: next play starts at track 1
 
     def _connect(self) -> rpc.MusicPlayerStub:
         if self._stub is None:
@@ -94,12 +98,23 @@ class Termusic:
     def _down(self, e: grpc.RpcError) -> bool:
         return e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED)
 
+    def _ensure_ui(self) -> None:
+        """Once per session: if the TUI window isn't open, open it. The TUI starts the server."""
+        if not self.show_ui or self._ui_checked:
+            return
+        self._ui_checked = True
+        if not self.tui_check():
+            self.tui_opener()
+            self._fresh = True
+
     def _ensure_server(self) -> None:
-        """Start the server once, then wait for the channel. Raises if it still isn't up."""
+        """Get the server up once (TUI-owned if show_ui, else headless), wait for the channel."""
         if not self.autostart or self._start_tried:
             raise TermusicError("The music player isn't running. Start termusic-server.")
         self._start_tried = True
-        self.starter()
+        if not self.show_ui:
+            self.starter()
+        self._fresh = True
         self._connect()
         try:
             grpc.channel_ready_future(self._channel).result(timeout=START_WAIT)
@@ -108,6 +123,7 @@ class Termusic:
 
     def _call(self, method: str, request=None):
         request = request or pb.Empty()
+        self._ensure_ui()
         try:
             return getattr(self._connect(), method)(request, timeout=RPC_TIMEOUT)
         except grpc.RpcError as e:
@@ -124,9 +140,11 @@ class Termusic:
     # --- lifecycle ---
     def open_ui(self) -> str:
         """Open the TUI (it starts the server). Does not auto-start a second server."""
+        self._ui_checked = True
         if self.tui_check():
             return "already open"
         self.tui_opener()
+        self._fresh = True
         self._connect()
         try:
             grpc.channel_ready_future(self._channel).result(timeout=START_WAIT)
@@ -149,6 +167,7 @@ class Termusic:
             self._channel.close()
         self._channel = self._stub = None
         self._start_tried = False  # allow a later start
+        self._ui_checked = False  # reopen the TUI on the next command
         return "stopped" if graceful or killed else "wasn't running"
 
     # --- state ---
@@ -172,18 +191,27 @@ class Termusic:
 
     # --- transport ---
     def play(self) -> str:
+        """Paused: resume. Playing: leave it. Stopped, or just brought up by Evie: start at track 1
+        (termusic would otherwise resume wherever it left off)."""
         st = self.status()
-        if st["state"] == "playing":
-            return "already playing"
-        if st["state"] == "paused":
+        fresh, self._fresh = self._fresh, False
+        if st["state"] == "paused" and not fresh:
             self._call("TogglePause")
             return "resumed"
-        pl = self._call("GetPlaylist")
-        if not pl.tracks:
+        if st["state"] == "playing" and (not fresh or st["track_index"] == 0):
+            return "already playing"
+        return self.play_track(1)
+
+    def play_track(self, number: int) -> str:
+        """Play queue position `number` (1-based)."""
+        tracks = self._call("GetPlaylist").tracks
+        if not tracks:
             return "queue is empty"
-        i = min(st["track_index"], len(pl.tracks) - 1)
-        self._call("PlaySpecific", pb.PlaylistPlaySpecific(track_index=i, id=pl.tracks[i].id))
-        return "playing"
+        if not 1 <= number <= len(tracks):
+            return f"the queue has {len(tracks)} tracks"
+        self._call("PlaySpecific", pb.PlaylistPlaySpecific(track_index=number - 1, id=tracks[number - 1].id))
+        self._fresh = False
+        return "playing" if number == 1 else f"playing track {number}"
 
     def pause(self) -> str:
         if self.status()["state"] != "playing":
