@@ -14,3 +14,4 @@ SYSTEM_PROMPT = (
     "one or two short sentences, no markdown. Use tools for actions and facts."
 )
 MAX_TOOL_TURNS = 5
+TERMUSIC_ADDR = os.getenv("TERMUSIC_ADDR", "[::1]:5101")
