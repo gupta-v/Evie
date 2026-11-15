@@ -5,6 +5,9 @@ from evie.core.agent import Agent
 from evie.services.voice import tts
 
 
+_last_error: list[str | None] = [None]
+
+
 def listen() -> str:
     """Wait (no key press) until speech starts, record it, return what was said ('' if it was noise)."""
     from evie.services.voice import stt
@@ -14,8 +17,11 @@ def listen() -> str:
         pcm = stt.record(wait_seconds=None)
         text = stt.transcribe(pcm) if pcm else ""
     except stt.SttError as e:
-        print(f"[voice] {e}")
+        if str(e) != _last_error[0]:  # the loop retries (reopening the mic): say each problem once
+            print(f"[voice] {e}")
+        _last_error[0] = str(e)
         return ""
+    _last_error[0] = None
     if text:
         print(f"You: {text}")
     return text

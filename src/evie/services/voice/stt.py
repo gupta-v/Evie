@@ -15,6 +15,7 @@ from evie.utils import config
 
 RATE = 16000
 _BLOCK = 480  # 30 ms
+STEADY_SECONDS, STEADY_VARIATION = 5, 0.2  # speech rises and falls; a hum, fan or music bed stays flat
 MIN_LOUD_BLOCKS = 8  # about 0.25 s of real speech: shorter is a click or a cough, not a command
 _URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 _MODEL = "whisper-large-v3-turbo"
@@ -52,28 +53,53 @@ class Gate:
         return self.spoke and self.quiet >= self.quiet_blocks
 
 
-def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_seconds: float = 1.0) -> bytes:
-    """Raw 16 kHz mono int16 PCM of one utterance (at most `max_seconds` long); b'' if nobody spoke or
-    it was only a blip. Waits `wait_seconds` for speech to start (None = forever)."""
-    import numpy as np
+def _mic_blocks():
+    """Mic blocks as int16 arrays. A callback feeds a queue, so waiting can be interrupted with Ctrl+C
+    (a blocking read inside the audio driver cannot) and a stalled device is noticed after 3 s."""
+    import queue
+
     import sounddevice as sd
 
-    gate, chunks, peak, waited = Gate(int(quiet_seconds * RATE / _BLOCK)), [], 0.0, 0
-    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=config.MIC) as stream:
-        while len(chunks) < max_seconds * RATE / _BLOCK:
-            block, _ = stream.read(_BLOCK)
-            rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
-            peak = max(peak, rms)
-            done = gate.update(rms)
-            last_levels.update(loudest=peak, needed=gate.threshold)
-            if gate.spoke:
-                chunks.append(block.tobytes())
-                if done:
-                    break
-            else:
-                waited += 1
-                if wait_seconds is not None and waited > wait_seconds * RATE / _BLOCK:
-                    return b""
+    q: queue.Queue = queue.Queue()
+    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=config.MIC,
+                        callback=lambda data, frames, time_info, status: q.put(data.copy())):
+        while True:
+            try:
+                yield q.get(timeout=3)
+            except queue.Empty:
+                raise SttError("The microphone stopped responding.") from None
+
+
+def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_seconds: float = 1.0, blocks=None) -> bytes:
+    """Raw 16 kHz mono int16 PCM of one utterance (at most `max_seconds` long); b'' if nobody spoke or
+    it was only a blip. Waits `wait_seconds` for speech to start (None = forever).
+    Raises SttError if the mic stalls or gives only silence for 5 s (a muted or mis-switched Bluetooth
+    headset does this): the caller reopens it. `blocks` is an iterable of int16 arrays (tests)."""
+    from collections import deque
+
+    import numpy as np
+
+    recent = deque(maxlen=int(STEADY_SECONDS * RATE / _BLOCK))  # loudness while 'speaking'
+    gate, chunks, peak, waited, dead = Gate(int(quiet_seconds * RATE / _BLOCK)), [], 0.0, 0, 0
+    for block in (blocks if blocks is not None else _mic_blocks()):
+        rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
+        peak = max(peak, rms)
+        dead = dead + 1 if rms <= 1 else 0
+        if dead > 5 * RATE / _BLOCK:
+            raise SttError("The microphone is giving only silence. Is it muted? (A Bluetooth headset may need EVIE_MIC set to another mic.)")
+        done = gate.update(rms)
+        last_levels.update(loudest=peak, needed=gate.threshold)
+        if gate.spoke:
+            chunks.append(block.tobytes())
+            recent.append(rms)
+            if len(recent) == recent.maxlen and np.std(recent) < STEADY_VARIATION * np.mean(recent):
+                return b""  # loud but not changing for 5 s: noise, not a person talking
+            if done or len(chunks) >= max_seconds * RATE / _BLOCK:
+                break
+        else:
+            waited += 1
+            if wait_seconds is not None and waited > wait_seconds * RATE / _BLOCK:
+                return b""
     return b"".join(chunks) if gate.loud_blocks >= MIN_LOUD_BLOCKS else b""
 
 

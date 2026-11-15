@@ -82,3 +82,34 @@ def test_fixed_threshold_overrides_the_learned_one(monkeypatch):
     assert not g.spoke          # below the fixed level
     g.update(1000)
     assert g.spoke and g.loud_blocks == 1
+
+
+def _blocks(level, n):
+    import numpy as np
+
+    return [np.full(480, level, dtype="int16") for _ in range(n)]
+
+
+def test_record_returns_the_utterance_and_stops_after_quiet():
+    audio = _blocks(40, 20) + _blocks(3000, 20) + _blocks(40, 40)   # room, speech, quiet
+    pcm = stt.record(blocks=iter(audio))
+    assert len(pcm) == (20 + 33) * 480 * 2  # speech plus the second of quiet that ended it
+
+
+def test_record_ignores_a_blip():
+    assert stt.record(blocks=iter(_blocks(40, 20) + _blocks(3000, 3) + _blocks(40, 40))) == b""
+
+
+def test_a_mic_that_gives_only_silence_is_an_error_not_a_freeze():
+    with pytest.raises(stt.SttError):
+        stt.record(wait_seconds=None, blocks=iter(_blocks(0, 400)))
+
+
+def test_steady_noise_is_dropped_but_varying_speech_is_kept():
+    import numpy as np
+
+    steady = _blocks(40, 20) + _blocks(3000, 400)                      # a hum for 12 s
+    assert stt.record(blocks=iter(steady)) == b""
+    rng = np.random.default_rng(1)
+    talking = [np.full(480, int(v), dtype="int16") for v in rng.integers(800, 6000, 400)]
+    assert len(stt.record(blocks=iter(_blocks(40, 20) + talking + _blocks(40, 40)))) > 0   # 12 s of varying level
