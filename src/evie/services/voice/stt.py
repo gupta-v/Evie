@@ -33,21 +33,33 @@ class SttError(Exception):
 class Gate:
     """Decides when an utterance starts and ends from block loudness.
 
-    Speech level follows the quietest block seen so far (x3, never below 250), so a mic that opens loud
-    and settles over a second (Bluetooth headsets do) does not set a threshold speech cannot reach."""
+    Loudness is a running average of 5 blocks (0.15 s), so one click or noise spike does not count. The
+    speech level is 2.5x the room's typical level (median of the last ~3 s of non-speech), never below 250:
+    a noisy PC mic (level 100-400 all the time) stays under it, and a mic that opens loud and settles
+    over a second (Bluetooth headsets) adjusts within a few seconds."""
 
     def __init__(self, quiet_blocks: int):
-        self.quiet_blocks, self.floor = quiet_blocks, float("inf")
+        from collections import deque
+
+        self.quiet_blocks = quiet_blocks
+        self._recent, self._noise = deque(maxlen=5), deque(maxlen=100)
         self.spoke, self.quiet, self.loud_blocks = False, 0, 0
 
     @property
     def threshold(self) -> float:
-        return config.THRESHOLD or max(250.0, 3 * self.floor)
+        if config.THRESHOLD:
+            return config.THRESHOLD
+        noise = sorted(self._noise)
+        return max(250.0, 2.5 * noise[len(noise) // 2]) if noise else 250.0
 
     def update(self, rms: float) -> bool:
         """Feed one block; True when the utterance is over."""
-        self.floor = min(self.floor, rms)
-        if rms > self.threshold:
+        self._recent.append(rms)
+        level = sum(self._recent) / len(self._recent)
+        loud = len(self._noise) >= 10 and level > self.threshold  # the first 0.3 s only teaches the room
+        if not loud:
+            self._noise.append(level)
+        if loud:
             self.spoke, self.quiet = True, 0
             self.loud_blocks += 1
         elif self.spoke:

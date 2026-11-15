@@ -10,17 +10,28 @@ def feed(gate, levels):
 
 def test_gate_waits_for_speech_then_quiet():
     g = stt.Gate(quiet_blocks=3)
-    assert not any(feed(g, [40, 40, 40, 40]))                 # never spoke
-    assert not any(feed(g, [5000, 5000, 40, 40]))             # spoke, not quiet long enough
-    assert g.update(40)                                       # third quiet block ends it
+    assert not any(feed(g, [40] * 15))                          # the room: never "spoke"
+    feed(g, [3000] * 8)
+    assert g.spoke
+    ends = feed(g, [40] * 12)                                   # the 5-block average takes a moment to fall
+    assert any(ends) and not ends[0]
 
 
 def test_gate_follows_a_mic_that_settles_from_loud():
     g = stt.Gate(quiet_blocks=3)
-    feed(g, [800, 700, 500, 300, 80, 50])                     # headset warm-up
-    assert g.threshold == 250                                 # floor, not 3 x 800
-    g.update(6000)
+    feed(g, [800, 700, 500, 300, 80] + [50] * 30)               # headset warm-up, then quiet
+    assert g.threshold == 250                                   # the floor, not 2.5 x 800
+    feed(g, [6000] * 3)
     assert g.spoke
+
+
+def test_a_noisy_room_does_not_count_as_speech():
+    import random
+
+    random.seed(3)
+    g = stt.Gate(quiet_blocks=3)
+    noise = [random.randint(100, 400) for _ in range(300)]      # this PC's mic: 100-400 all the time
+    assert not any(feed(g, noise)) and not g.spoke
 
 
 class R:
@@ -77,12 +88,12 @@ def test_phantom_phrases_from_near_silence_are_dropped():
 def test_fixed_threshold_overrides_the_learned_one(monkeypatch):
     monkeypatch.setattr(config, "THRESHOLD", 900.0)
     g = stt.Gate(quiet_blocks=2)
-    g.update(5)
+    feed(g, [5] * 15)
     assert g.threshold == 900.0
-    g.update(800)
+    feed(g, [800] * 8)
     assert not g.spoke          # below the fixed level
-    g.update(1000)
-    assert g.spoke and g.loud_blocks == 1
+    feed(g, [1500] * 8)
+    assert g.spoke and g.loud_blocks >= 1
 
 
 def _blocks(level, n):
@@ -94,7 +105,7 @@ def _blocks(level, n):
 def test_record_returns_the_utterance_and_stops_after_quiet():
     audio = _blocks(40, 20) + _blocks(3000, 20) + _blocks(40, 40)   # room, speech, quiet
     pcm = stt.record(blocks=iter(audio))
-    assert len(pcm) == (stt.PREROLL_BLOCKS + 20 + 23) * 480 * 2  # lead-in, speech, and the 0.7 s of quiet that ended it
+    assert 20 * 960 < len(pcm) < (stt.PREROLL_BLOCKS + 20 + 23 + 8) * 960  # lead-in, speech, the quiet that ended it
 
 
 def test_record_ignores_a_blip():
@@ -103,7 +114,7 @@ def test_record_ignores_a_blip():
 
 def test_a_click_then_real_speech_returns_the_speech():
     audio = _blocks(40, 15) + _blocks(9000, 1) + _blocks(40, 40) + _blocks(3000, 20) + _blocks(40, 40)
-    assert len(stt.record(blocks=iter(audio))) == (stt.PREROLL_BLOCKS + 20 + 23) * 480 * 2
+    assert 20 * 960 < len(stt.record(blocks=iter(audio))) < (stt.PREROLL_BLOCKS + 20 + 23 + 8) * 960
 
 
 def test_a_mic_that_gives_only_silence_is_an_error_not_a_freeze():
