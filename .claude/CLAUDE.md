@@ -31,11 +31,13 @@ Not in scope now: wake word, memory, gesture control, ESP32 body, Go/Rust/React 
 ```
 src/evie/
   config.py       env settings
-  core/           registry.py (ToolRegistry), agent.py, router.py (later)
+  core/           registry.py (ToolRegistry), agent.py, router.py (fast regex router)
   providers/      LLM backends: gemini.py, anthropic.py
-  tools/          one file per capability, imported in tools/__init__.py
-  services/       termusic gRPC client, notify, tasks (when added)
-  voice/          pipecat pipeline (step 4)
+  tools/          what the LLM can call, one folder per domain, each imported in its __init__.py:
+                  music/ (playback, volume, songs, online), web/, system/ (apps, clipboard), info/
+  services/       the real work behind tools, same domains: music/ (termusic gRPC, TUI input, library),
+                  web/, system/, voice/ (stt, tts)
+  utils/          small shared helpers (text.py)
 tests/
 docs/
 ```
