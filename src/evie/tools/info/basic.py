@@ -5,7 +5,7 @@ from pydantic import Field
 
 from evie import config
 from evie.core.registry import tool
-from evie.services import weather
+from evie.services.web import weather
 
 
 @tool

@@ -2,8 +2,8 @@ import pytest
 
 import evie.tools  # noqa: F401
 from evie.core import registry
-from evie.services import wikipedia as wiki
-from evie.services.text import shorten
+from evie.services.web import wikipedia as wiki
+from evie.utils.text import shorten
 
 
 class FakeWrapper:

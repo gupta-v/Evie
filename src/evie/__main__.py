@@ -2,12 +2,12 @@ import sys
 
 from evie import config
 from evie.core.agent import Agent
-from evie.services import tts
+from evie.services.voice import tts
 
 
 def listen() -> str:
     """Wait for Enter, record one utterance, return what was said ('' if nothing)."""
-    from evie.services import stt
+    from evie.services.voice import stt
 
     input("[Enter to talk] ")
     print("[listening...]")

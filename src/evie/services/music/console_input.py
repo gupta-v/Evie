@@ -2,7 +2,7 @@
 
 Attaches to the target's console and writes key events into its input buffer, so the keys can only
 reach that process: never the foreground window, never a game. The attach changes this process's own
-console, so the work runs in a short-lived child (`python -m evie.services.console_input PID`) and
+console, so the work runs in a short-lived child (`python -m evie.services.music.console_input PID`) and
 the key list is sent as JSON on stdin.
 """
 import json
@@ -102,7 +102,7 @@ def _read(pid: int) -> list[str]:
 def read_screen(pid: int) -> list[str]:
     """The visible text of process `pid`'s console, one string per row."""
     r = subprocess.run(
-        [sys.executable, "-m", "evie.services.console_input", "read", str(pid)], capture_output=True, text=True, timeout=15
+        [sys.executable, "-m", "evie.services.music.console_input", "read", str(pid)], capture_output=True, text=True, timeout=15
     )
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "reading the screen failed")
@@ -114,7 +114,7 @@ def send_keys(pid: int, keys: list[str], pause_after_first: float = 0.0) -> None
     batches = [keys[:1], keys[1:]] if pause_after_first and len(keys) > 1 else [keys]
     for i, batch in enumerate(batches):
         r = subprocess.run(
-            [sys.executable, "-m", "evie.services.console_input", "keys", str(pid)],
+            [sys.executable, "-m", "evie.services.music.console_input", "keys", str(pid)],
             input=json.dumps(batch), capture_output=True, text=True, timeout=15,
         )
         if r.returncode != 0:

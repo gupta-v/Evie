@@ -1,4 +1,4 @@
-from evie.services import tts
+from evie.services.voice import tts
 
 
 def test_clean_drops_emoji_and_markdown():

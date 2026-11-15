@@ -12,7 +12,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Callable
 
-from evie.services.text import words
+from evie.utils.text import words
 
 _LIST_CMD = "Get-StartApps | Select-Object Name, AppID | ConvertTo-Json -Compress"
 

@@ -4,8 +4,8 @@ import pytest
 
 import evie.tools  # noqa: F401
 from evie.core import registry
-from evie.services import apps
-from evie.services.apps import App
+from evie.services.system import apps
+from evie.services.system.apps import App
 
 START_MENU = [
     App("WhatsApp", "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App"),
@@ -74,7 +74,7 @@ def test_single_app_json_object_is_handled(monkeypatch):
 @pytest.fixture
 def browser(monkeypatch):
     opened = []
-    monkeypatch.setattr("evie.tools.apps.webbrowser.open", lambda u: opened.append(u) or True)
+    monkeypatch.setattr("evie.tools.system.apps.webbrowser.open", lambda u: opened.append(u) or True)
     return opened
 
 

@@ -12,8 +12,8 @@ import re
 import time
 from dataclasses import dataclass
 
-from evie.services import console_input as ci
-from evie.services.termusic import TermusicError, tui_pids
+from evie.services.music import console_input as ci
+from evie.services.music.termusic import TermusicError, tui_pids
 
 # A result row inside the popup: left border, optional selection marker, [duration], title, right border.
 _ROW = re.compile(r"│[▶ ]?\[(\d{1,3}:\d{2})\]\s+(.*?)\s*│")

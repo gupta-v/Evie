@@ -3,9 +3,9 @@ from concurrent import futures
 import grpc
 import pytest
 
-from evie.services.termusic import Termusic
-from evie.services.termusic_pb import player_pb2 as pb
-from evie.services.termusic_pb import player_pb2_grpc as rpc
+from evie.services.music.termusic import Termusic
+from evie.services.music.termusic_pb import player_pb2 as pb
+from evie.services.music.termusic_pb import player_pb2_grpc as rpc
 
 
 class FakePlayer(rpc.MusicPlayerServicer):

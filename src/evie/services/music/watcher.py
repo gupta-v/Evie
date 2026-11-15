@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from evie.services import library
+from evie.services.music import library
 
 _cancel = threading.Event()
 

@@ -6,9 +6,9 @@ import evie.tools  # noqa: F401
 from evie import config
 from evie.core import registry
 from evie.core.agent import Agent
-from evie.services import library, tui_input
-from evie.services.termusic import Termusic
-from evie.tools import music
+from evie.services.music import library, tui_input
+from evie.services.music.termusic import Termusic
+from evie.tools.music import common, online
 
 FILES = [
     "Aadat Se Majboor - Salim–Sulaiman, Benny Dayal.flac",
@@ -30,9 +30,9 @@ def lib(tmp_path, monkeypatch):
 
 @pytest.fixture
 def wired(player):
-    music.set_client(player.client)
+    common.set_client(player.client)
     yield player
-    music.set_client(None)
+    common.set_client(None)
 
 
 # --- library search ---
@@ -153,17 +153,17 @@ def test_search_online_gives_up_if_termusic_shows_nothing(wired, monkeypatch):
 
 def test_pick_presses_down_to_the_chosen_row_then_enter_and_watches(wired, tui, monkeypatch):
     watching = []
-    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: watching.append(cb))
+    monkeypatch.setattr(online.watcher, "watch_new_song", lambda cb: watching.append(cb))
     registry.call("music_search_online", {"query": "hola amigo"})
     tui.sent.clear()
     out = registry.call("music_pick_result", {"number": 3})
     assert tui.sent == [(222, ["<down>", "<down>", "<enter>"])]
     assert out.startswith("Downloading KR$NA ft. Seedhe Maut - Hola Amigo. It will play")
-    assert watching == [music._on_downloaded]  # watch started before the download
+    assert watching == [online._on_downloaded]  # watch started before the download
 
 
 def test_pick_first_result_is_just_enter(wired, tui, monkeypatch):
-    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: None)
+    monkeypatch.setattr(online.watcher, "watch_new_song", lambda cb: None)
     registry.call("music_search_online", {"query": "x"})
     tui.sent.clear()
     registry.call("music_pick_result", {"number": 1})
@@ -172,8 +172,8 @@ def test_pick_first_result_is_just_enter(wired, tui, monkeypatch):
 
 def test_pick_validates_and_cancels_the_watch_on_failure(wired, tui, monkeypatch):
     calls = []
-    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: calls.append("watch"))
-    monkeypatch.setattr(music.watcher, "cancel", lambda: calls.append("cancel"))
+    monkeypatch.setattr(online.watcher, "watch_new_song", lambda cb: calls.append("watch"))
+    monkeypatch.setattr(online.watcher, "cancel", lambda: calls.append("cancel"))
     registry.call("music_search_online", {"query": "x"})
     tui.sent.clear()
     assert "only 5 results" in registry.call("music_pick_result", {"number": 9})
@@ -184,10 +184,10 @@ def test_pick_validates_and_cancels_the_watch_on_failure(wired, tui, monkeypatch
 
 def test_downloaded_song_is_queued_and_played(lib, wired, monkeypatch):
     said = []
-    monkeypatch.setattr(music, "_announce", said.append)
+    monkeypatch.setattr(online, "_announce", said.append)
     song = lib / "Hola Amigo.mp3"
     song.write_bytes(b"x")
-    music._on_downloaded(song)
+    online._on_downloaded(song)
     assert len(wired.tracks) == 1 and "PlaySpecific:0" in wired.calls
     assert said == ["Downloaded Hola Amigo. Now playing it."]
 

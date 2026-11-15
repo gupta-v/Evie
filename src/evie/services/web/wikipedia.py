@@ -9,7 +9,7 @@ package, so if it is ever removed use that package directly and delete the impor
 import re
 import warnings
 
-from evie.services.text import shorten
+from evie.utils.text import shorten
 
 _MAX_CHARS = 380
 _EMPTY_PARENS = re.compile(r"\s*\(\s*[,;]?\s*\)")  # left where Wikipedia dropped a pronunciation

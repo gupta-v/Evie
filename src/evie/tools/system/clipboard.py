@@ -4,7 +4,7 @@ from typing import Annotated
 from pydantic import Field
 
 from evie.core.registry import tool
-from evie.services import clipboard
+from evie.services.system import clipboard
 
 
 @tool

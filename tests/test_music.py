@@ -2,8 +2,8 @@ import pytest
 
 import evie.tools  # noqa: F401
 from evie.core import registry
-from evie.services.termusic import Termusic
-from evie.tools import music
+from evie.services.music.termusic import Termusic
+from evie.tools.music import common as music
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +59,7 @@ def test_music_start_opens_tui_once_and_waits_for_server():
 
     import grpc
 
-    from evie.services.termusic_pb import player_pb2_grpc as rpc
+    from evie.services.music.termusic_pb import player_pb2_grpc as rpc
     from tests.conftest import FakePlayer
     from tests.test_termusic import _free_port
 

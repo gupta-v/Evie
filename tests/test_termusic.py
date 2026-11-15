@@ -1,6 +1,6 @@
 import pytest
 
-from evie.services.termusic import Termusic, TermusicError
+from evie.services.music.termusic import Termusic, TermusicError
 
 
 def test_status_and_volume_steps(player):
@@ -56,7 +56,7 @@ def test_autostart_launches_server_once_then_retries():
 
     import grpc
 
-    from evie.services.termusic_pb import player_pb2_grpc as rpc
+    from evie.services.music.termusic_pb import player_pb2_grpc as rpc
     from tests.conftest import FakePlayer
 
     port, started = _free_port(), []
@@ -79,7 +79,7 @@ def test_autostart_launches_server_once_then_retries():
 def test_autostart_failure_is_spoken_and_not_repeated():
     calls = []
     c = Termusic("127.0.0.1:1", starter=lambda: calls.append(1), autostart=True)
-    import evie.services.termusic as t
+    import evie.services.music.termusic as t
 
     t.START_WAIT = 0.5
     with pytest.raises(TermusicError, match="didn't come up"):
@@ -128,7 +128,7 @@ def test_show_ui_server_down_waits_for_tui_instead_of_starting_headless():
         "127.0.0.1:1", show_ui=True, autostart=True, starter=lambda: started.append(1),
         tui_opener=lambda: opened.append(1), tui_check=lambda: False,
     )
-    import evie.services.termusic as t
+    import evie.services.music.termusic as t
 
     t.START_WAIT = 0.5
     with pytest.raises(TermusicError):
@@ -173,7 +173,7 @@ def test_play_track_picks_position_and_validates(player):
 
 
 def test_open_tui_prefers_windows_terminal_for_cover_art(monkeypatch):
-    import evie.services.termusic as t
+    import evie.services.music.termusic as t
 
     launched = []
     monkeypatch.setattr(t.shutil, "which", lambda n: {"termusic": "C:/s/termusic.exe", "wt": "C:/w/wt.exe"}.get(n))
@@ -183,7 +183,7 @@ def test_open_tui_prefers_windows_terminal_for_cover_art(monkeypatch):
 
 
 def test_open_tui_falls_back_to_plain_console_without_wt(monkeypatch):
-    import evie.services.termusic as t
+    import evie.services.music.termusic as t
 
     launched = []
     monkeypatch.setattr(t.shutil, "which", lambda n: "C:/s/termusic.exe" if n == "termusic" else None)
@@ -203,7 +203,7 @@ def test_tui_launched_once_even_if_process_is_slow_to_appear(player):
 
 
 def test_tui_relaunched_after_grace_if_user_closed_it(player, monkeypatch):
-    import evie.services.termusic as t
+    import evie.services.music.termusic as t
 
     opened = []
     c = Termusic(player.client.addr, show_ui=True, tui_opener=lambda: opened.append(1), tui_check=lambda: False)
@@ -216,7 +216,7 @@ def test_tui_relaunched_after_grace_if_user_closed_it(player, monkeypatch):
 def test_tui_pids_parses_tasklist_csv_and_ignores_the_server(monkeypatch):
     import subprocess
 
-    import evie.services.termusic as t
+    import evie.services.music.termusic as t
 
     rows = ['"termusic.exe","25040","Console","1","6,304 K"', '"termusic.exe","10428","Console","1","6,300 K"']
     csv_out = "\n".join(rows) + "\n"

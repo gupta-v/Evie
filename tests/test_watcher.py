@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from evie.services import watcher
+from evie.services.music import watcher
 
 
 class World:

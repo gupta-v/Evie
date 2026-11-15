@@ -3,7 +3,7 @@ import pytest
 import evie.tools  # noqa: F401
 from evie import config
 from evie.core import registry
-from evie.services import websearch
+from evie.services.web import websearch
 
 ROWS = [
     {"title": "Microsoft DevOps Certificate", "href": "https://www.bing.com/aclick?ld=abc", "body": "sponsored"},

@@ -2,7 +2,7 @@ import pytest
 
 import evie.tools  # noqa: F401
 from evie.core import registry
-from evie.services import weather
+from evie.services.web import weather
 
 
 class Resp:

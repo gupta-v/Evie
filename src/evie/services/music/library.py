@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from evie import config
-from evie.services.text import words
+from evie.utils.text import words
 
 EXTS = {".mp3", ".flac", ".opus", ".m4a", ".ogg", ".wav", ".aac", ".wma"}
 

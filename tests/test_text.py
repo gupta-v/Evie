@@ -1,6 +1,6 @@
 import pytest
 
-from evie.services.text import clean_title, spoken_duration
+from evie.utils.text import clean_title, spoken_duration
 
 
 @pytest.mark.parametrize("raw, clean", [

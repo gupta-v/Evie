@@ -4,7 +4,7 @@ from typing import Annotated
 from pydantic import Field
 
 from evie.core.registry import tool
-from evie.services import websearch, wikipedia as wiki
+from evie.services.web import websearch, wikipedia as wiki
 
 
 @tool

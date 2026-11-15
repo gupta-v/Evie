@@ -37,7 +37,7 @@ Prereqs: `termusic`, `termusic-server`, `yt-dlp`, `ffmpeg` on PATH (scoop). Serv
 | 2.5 | Tests with a fake gRPC server | `tests/test_music.py` | `uv run pytest` green |
 
 Regenerate stubs (protobuf must stay 6.x to match Pipecat's pin, so use grpcio-tools 1.74-1.78, not latest):
-`uv run --no-project --with "grpcio-tools==1.74.0" python -m grpc_tools.protoc -Iproto --python_out=src/evie/services/termusic_pb --grpc_python_out=src/evie/services/termusic_pb proto/player.proto`, then change `import player_pb2` in `player_pb2_grpc.py` to `from evie.services.termusic_pb import player_pb2`.
+`uv run --no-project --with "grpcio-tools==1.74.0" python -m grpc_tools.protoc -Iproto --python_out=src/evie/services/termusic_pb --grpc_python_out=src/evie/services/termusic_pb proto/player.proto`, then change `import player_pb2` in `player_pb2_grpc.py` to `from evie.services.music.termusic_pb import player_pb2`.
 
 Needs from user: music folder path, auto-start preference.
 Unknown: whether termusic plays a YouTube URL from the queue. Test early in 2.4.

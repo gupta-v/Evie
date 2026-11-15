@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 from pydantic import Field
 
 from evie.core.registry import tool
-from evie.services import apps
-from evie.services.text import words
+from evie.services.system import apps
+from evie.utils.text import words
 
 NOT_A_URL = "That isn't a web address I can open."
 _BARE_DOMAIN = re.compile(r"^(?:[\w-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$", re.I)  # youtube.com, x.org/a?b=c

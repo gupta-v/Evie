@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 from evie import config
-from evie.services.text import clean_title, shorten
+from evie.utils.text import clean_title, shorten
 
 SNIPPET_CHARS = 170
 _ADS = ("/aclick", "ad_domain=", "ad_provider=", "doubleclick.net", "googleadservices.com")

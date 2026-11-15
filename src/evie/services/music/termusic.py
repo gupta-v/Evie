@@ -14,8 +14,8 @@ from typing import Callable
 import grpc
 
 from evie import config
-from evie.services.termusic_pb import player_pb2 as pb
-from evie.services.termusic_pb import player_pb2_grpc as rpc
+from evie.services.music.termusic_pb import player_pb2 as pb
+from evie.services.music.termusic_pb import player_pb2_grpc as rpc
 
 STATUS = {0: "stopped", 1: "playing", 2: "paused"}
 VOLUME_STEP = 5

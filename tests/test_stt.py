@@ -1,7 +1,7 @@
 import pytest
 
 from evie import config
-from evie.services import stt
+from evie.services.voice import stt
 
 
 def test_end_of_speech_needs_speech_then_quiet():
