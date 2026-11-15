@@ -21,7 +21,7 @@ MIC = int(_mic) if _mic and _mic.isdigit() else _mic
 SPEAK = os.getenv("EVIE_SPEAK", "0") == "1"  # read replies aloud
 VOICE = os.getenv("EVIE_VOICE") or "en-IN-NeerjaNeural"  # any Edge voice name
 TTS_ORDER = [n.strip() for n in (os.getenv("EVIE_TTS") or "kokoro,edge").split(",") if n.strip()]  # tried in order
-KOKORO_VOICE = os.getenv("EVIE_KOKORO_VOICE") or "af_heart"  # e.g. af_bella, bf_emma, am_adam
+KOKORO_VOICE = os.getenv("EVIE_KOKORO_VOICE") or "af_sarah"  # e.g. af_heart, af_bella, bf_emma
 KOKORO_DIR = Path(__file__).resolve().parents[3] / "models" / "kokoro"
 DEBUG = os.getenv("EVIE_DEBUG", "0") == "1"
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or None  # fast web search; keyless fallback is slow
