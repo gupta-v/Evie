@@ -97,7 +97,12 @@ def test_record_returns_the_utterance_and_stops_after_quiet():
 
 
 def test_record_ignores_a_blip():
-    assert stt.record(blocks=iter(_blocks(40, 20) + _blocks(3000, 3) + _blocks(40, 40))) == b""
+    assert stt.record(blocks=iter(_blocks(40, 20) + _blocks(3000, 3) + _blocks(40, 40)), wait_seconds=2) == b""
+
+
+def test_a_click_then_real_speech_returns_the_speech():
+    audio = _blocks(40, 15) + _blocks(9000, 1) + _blocks(40, 40) + _blocks(3000, 20) + _blocks(40, 40)
+    assert len(stt.record(blocks=iter(audio))) == (20 + 33) * 480 * 2
 
 
 def test_a_mic_that_gives_only_silence_is_an_error_not_a_freeze():
@@ -113,3 +118,12 @@ def test_steady_noise_is_dropped_but_varying_speech_is_kept():
     rng = np.random.default_rng(1)
     talking = [np.full(480, int(v), dtype="int16") for v in rng.integers(800, 6000, 400)]
     assert len(stt.record(blocks=iter(_blocks(40, 20) + talking + _blocks(40, 40)))) > 0   # 12 s of varying level
+
+
+def test_mic_device_resolves_a_name_to_the_first_input_with_it():
+    devs = [{"name": "Speakers", "max_input_channels": 0}, {"name": "Headset", "max_input_channels": 1},
+            {"name": "Microphone (Realtek(R) Audio)", "max_input_channels": 1}, {"name": "Microphone (Realtek HD)", "max_input_channels": 1}]
+    assert stt.mic_device("realtek", devs) == 2
+    assert stt.mic_device(None, devs) is None and stt.mic_device(7, devs) == 7
+    with pytest.raises(stt.SttError):
+        stt.mic_device("nothing", devs)

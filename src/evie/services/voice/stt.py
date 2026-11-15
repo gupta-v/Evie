@@ -53,6 +53,19 @@ class Gate:
         return self.spoke and self.quiet >= self.quiet_blocks
 
 
+def mic_device(setting, devices=None):
+    """Input device index for EVIE_MIC: a number as is, a name part matched to the first input with it
+    (the same mic is listed once per audio API, so a bare name is ambiguous), None for the default."""
+    if setting is None or isinstance(setting, int):
+        return setting
+    import sounddevice as sd
+
+    for i, d in enumerate(devices if devices is not None else sd.query_devices()):
+        if d["max_input_channels"] > 0 and setting.lower() in d["name"].lower():
+            return i
+    raise SttError(f"No microphone matching '{setting}'.")
+
+
 def _mic_blocks():
     """Mic blocks as int16 arrays. A callback feeds a queue, so waiting can be interrupted with Ctrl+C
     (a blocking read inside the audio driver cannot) and a stalled device is noticed after 3 s."""
@@ -61,7 +74,7 @@ def _mic_blocks():
     import sounddevice as sd
 
     q: queue.Queue = queue.Queue()
-    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=config.MIC,
+    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=mic_device(config.MIC),
                         callback=lambda data, frames, time_info, status: q.put(data.copy())):
         while True:
             try:
@@ -94,13 +107,16 @@ def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_second
             recent.append(rms)
             if len(recent) == recent.maxlen and np.std(recent) < STEADY_VARIATION * np.mean(recent):
                 return b""  # loud but not changing for 5 s: noise, not a person talking
-            if done or len(chunks) >= max_seconds * RATE / _BLOCK:
+            if done and gate.loud_blocks < MIN_LOUD_BLOCKS:  # a click (mics make one when they open), not speech: keep waiting
+                gate.spoke, gate.quiet, gate.loud_blocks, chunks = False, 0, 0, []
+                recent.clear()
+            elif done or len(chunks) >= max_seconds * RATE / _BLOCK:
                 break
         else:
             waited += 1
             if wait_seconds is not None and waited > wait_seconds * RATE / _BLOCK:
                 return b""
-    return b"".join(chunks) if gate.loud_blocks >= MIN_LOUD_BLOCKS else b""
+    return b"".join(chunks)
 
 
 def _wav(pcm: bytes) -> bytes:

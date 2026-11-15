@@ -18,7 +18,7 @@ for i, d in enumerate(sd.query_devices()):
         print(f"{i:3d}  {d['name']}")
 print(f"\nusing: {config.MIC if config.MIC is not None else 'system default'}. Speak now (8 s):")
 quiet = float("inf")
-with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=480, device=config.MIC) as s:
+with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=480, device=stt.mic_device(config.MIC)) as s:
     for i in range(int(8 * 16000 / 480)):
         block, _ = s.read(480)
         rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
