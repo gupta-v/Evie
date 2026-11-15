@@ -1,0 +1,29 @@
+# Troubleshooting
+
+## "[heard nothing: loudest X, needed Y]"
+Evie got no speech above the level it needs. Run `uv run python scripts/mic_check.py` and speak.
+- If your voice never reaches "needed": wrong microphone or a very quiet one. Try another with `EVIE_MIC`.
+- Bluetooth headsets switch to a low-quality call mode when the mic opens and take about a second to settle. Evie allows for that, but the built-in PC mic is more reliable.
+- Music playing through speakers is picked up as noise. Pausing music while you talk is planned, not built.
+
+## Evie hears the wrong thing, such as "Thank you."
+Speech-to-text models invent words from near-silence. Speak after the "[listening...]" line and close to the mic.
+
+## "No Groq key is set" / "All Groq keys were rejected or rate limited"
+Add `GROQ_API_KEY` (or `_KEY1`/`_KEY2`) to `.env`. A rate-limited key is skipped for 5 minutes while the others are tried.
+
+## No sound, or an error from the voice
+- Run `uv run python scripts/voice_setup.py`: it downloads missing Kokoro files.
+- With `EVIE_TTS=kokoro,edge`, a failing local voice falls back to the online one, which needs internet.
+
+## "I couldn't reach the web search"
+Without `TAVILY_API_KEY` search uses a free fallback that sometimes returns nothing. Add a Tavily key.
+
+## Music: "can't find termusic" or nothing plays
+Put `termusic` and `termusic-server` on PATH. Check that `TERMUSIC_ADDR` matches the server. If music windows pile up, say "stop termusic".
+
+## "failed to remove ... evie.exe" during `uv sync`
+Evie is still running in another terminal. Close it and run `uv sync` again.
+
+## An app is not found ("open X")
+Evie opens apps by their Start menu name; "Windows Terminal" is listed as just "Terminal". Command-line tools such as Claude Code are not Start menu apps.

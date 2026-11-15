@@ -2,6 +2,7 @@
 
 | Doc | What |
 |---|---|
+| [handbook/](handbook/README.md) | Setup, usage, settings, troubleshooting (for someone installing Evie) |
 | [idea.md](idea.md) | What Evie is, principles, scope |
 | [architecture/overview.md](architecture/overview.md) | Layout, rules, tool maps |
 | [architecture/flow.md](architecture/flow.md) | Voice turn, background task, approval, termusic flows |
