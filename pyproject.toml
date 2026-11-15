@@ -1,0 +1,35 @@
+[project]
+name = "evie"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "anthropic>=2.8.0",
+    "ddgs>=9.16.1",
+    "edge-tts>=7.3.1",
+    "faster-whisper>=1.2.1",
+    "google-genai>=3.3.0",
+    "grpcio>=1.85.1",
+    "kokoro-onnx>=0.6.1",
+    "langchain>=1.5.0",
+    "langchain-community>=0.4.2",
+    "pipecat-ai>=1.16.0",
+    "pydantic>=2.14.3",
+    "python-dotenv>=1.2.4",
+    "sounddevice>=0.5.6",
+    "wikipedia>=1.4.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[project.scripts]
+evie = "evie.core.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/evie"]

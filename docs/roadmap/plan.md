@@ -1,0 +1,128 @@
+# Implementation plan
+
+Detailed, step by step. High-level view and phases: [roadmap.md](roadmap.md). Tick boxes as work lands. Update the status log at the bottom.
+
+Conventions: package `src/evie`, run `uv run evie`, test `uv run pytest`. A new tool is a file in `tools/` plus an import in `tools/__init__.py`. Services (clients, background jobs) live in `services/`. Tools never import the agent or voice code.
+
+---
+
+## Step 0: Verify (done)
+- [x] Pipecat 1.16.0 installs on Python 3.12 / Windows. Python capped `<3.14`.
+- [x] Pipecat ships Groq STT, Google, Anthropic, Fish, Piper, Kokoro services, local and smallwebrtc transports, Silero VAD. No Edge TTS built in.
+- [ ] Still open: PyAudio / local audio on this PC, live latency, Fish free-tier limits, Hermes yes/no.
+
+## Step 1: Text brain (done)
+- [x] `utils/config.py`, `core/registry.py`, `core/agent.py`, `core/main.py`, `providers/{gemini,anthropic}.py`, `tools/info/basic.py`. (Files were later regrouped into domain folders; see CLAUDE.md for the layout.)
+- [x] Verified live: Gemini `gemini-3.5-flash-lite`, "what time is it" calls `get_time`.
+- [ ] Add a test that fakes the provider and checks the tool loop (no network).
+
+## Step 1b: Foundation (before tools multiply)
+| # | Task | Files | Done when |
+|---|---|---|---|
+| 1b.1 | [x] Tool metadata: `risk` (read or write), `fast` (fast-path eligible) on `@tool`; `registry.meta(name)` | `core/registry.py` | Test reads metadata |
+| 1b.2 | [x] Policy hook: write-risk tools return "needs approval" unless approved | `core/registry.py` | Test: write tool blocked |
+| 1b.3 | Lazy tool loading: tool modules import on first use, not at startup | `tools/__init__.py` | Startup does not import heavy deps |
+| 1b.4 | SQLite state store (sessions, reminders, tasks) | `services/store.py` | Roundtrip test |
+| 1b.5 | Modes in config (`normal`, `gaming`) read by agent and tools | `config.py` | Gaming mode shortens replies |
+
+
+Prereqs: `termusic`, `termusic-server`, `yt-dlp`, `ffmpeg` on PATH (scoop). Server must be running, default `[::1]:5101`.
+
+| # | Task | Files | Done when |
+|---|---|---|---|
+| 2.1 | [x] Copy `player.proto`, generate stubs with a protoc matching protobuf 6.x | `proto/player.proto`, `src/evie/services/termusic_pb/` | `import` of generated modules works |
+| 2.2 | [x] gRPC client: connect, helpful error if server down, optional auto-start | `services/termusic.py` | `get_progress()` returns volume and status against a live server |
+| 2.3 | [x] Music tools: play, pause (read status first), next, previous, volume up/down N times, now playing, queue list, clear, shuffle | `tools/music.py` | Typing each command makes termusic react |
+| 2.4 | [x] Name to track: local library search, else `yt-dlp ytsearch1:`, then `AddToPlaylist` | `services/music_search.py` | "add Blinding Lights" lands in the queue |
+| 2.5 | Tests with a fake gRPC server | `tests/test_music.py` | `uv run pytest` green |
+
+Regenerate stubs (protobuf must stay 6.x to match Pipecat's pin, so use grpcio-tools 1.74-1.78, not latest):
+`uv run --no-project --with "grpcio-tools==1.74.0" python -m grpc_tools.protoc -Iproto --python_out=src/evie/services/termusic_pb --grpc_python_out=src/evie/services/termusic_pb proto/player.proto`, then change `import player_pb2` in `player_pb2_grpc.py` to `from evie.services.music.termusic_pb import player_pb2`.
+
+Needs from user: music folder path, auto-start preference.
+Unknown: whether termusic plays a YouTube URL from the queue. Test early in 2.4.
+Rules: volume step is 5 (server `VOLUME_STEP`). No absolute volume: read `GetProgress.volume`, then call N times. Never pass LLM text to a shell: `yt-dlp` gets an argv list.
+
+## Step 3: Fast router
+| # | Task | Files |
+|---|---|---|
+| 3.1 | [x] Normalize text, regex map for pause, play, next, previous, volume up/down, set volume, shuffle. (Missing: "volume up N", mute) | `core/router.py` |
+| 3.2 | [x] Router runs before the LLM. Match runs the tool and returns the tool's own text. No match goes to the agent | `core/agent.py` |
+| 3.3 | Record routed turns in history so follow-ups keep context | `core/agent.py` |
+| 3.4 | [x] Tests: phrases to actions, near-misses fall through | `tests/test_router.py` |
+
+Done when: "next" returns in under 100 ms with no LLM call.
+
+## Step 4: Voice (Python gateway, then Rust ear)
+**Status 2026-11-16:** the Python side is built as one in-process loop, no WebSocket and no Pipecat yet: `services/voice/stt.py` (always-open mic via sounddevice callback, `Gate` loudness detector with rolling-median threshold, 0.4 s pre-roll, blip/steady-noise filters, on-device faster-whisper `base` with Groq backup, library names as Whisper prompt), `services/voice/tts.py` (Kokoro int8 local, Edge fallback, `Speaker` streams sentence by sentence), `core/main.py` (loop and stage timers), `providers/gemini.py` (streaming, model fallback chain). Open: 4.4 duck music, 4.5-4.6 Rust ear and wake word, 4.7 gaming mode, protocol doc (only needed if the Rust ear is built), STT accuracy decision from `scripts/stt_compare.py`.
+
+Design: a small always-on Rust "ear" detects the wake word and records the utterance, then sends audio to the Python brain over a local WebSocket (127.0.0.1). Python does STT, router, agent, TTS and plays the reply. See decisions 8 and 13.
+
+**Protocol (define first, in `docs/architecture/protocol.md`):**
+- Ear to brain: `wake`, `audio` (pcm16 mono 16 kHz, binary frames), `end_of_speech`.
+- Brain to ear: `speaking_start`, `speaking_end` (ear ignores the mic or wake word meanwhile), `mode` (`normal` or `gaming`), `shutdown`.
+
+| # | Task | Files |
+|---|---|---|
+| 4.1 | Write the protocol doc | `docs/architecture/protocol.md` |
+| 4.2 | Python voice gateway: WebSocket server, Groq Whisper STT (`GROQ_API_KEY`), router then agent, TTS (custom Edge service, Piper fallback), plays reply | `voice/gateway.py`, `voice/stt.py`, `voice/tts.py` |
+| 4.3 | Test client: push-to-talk script that speaks the same protocol (proves the brain by voice with no Rust) | `scripts/ptt_client.py` |
+| 4.4 | Duck or pause termusic while listening and speaking | `services/termusic.py` |
+| 4.5 | Rust ear: cpal mic, openWakeWord via `ort`, Silero VAD, record utterance, WebSocket client | `ear/` (Rust crate) |
+| 4.6 | Tray icon, autostart at login, single instance; ear launches the Python brain on demand and stops it when idle (optional) | `ear/` |
+| 4.7 | Gaming mode: short replies, no automation tools, no windows or focus steal | `config.py` |
+| 4.8 | Custom "Evie" wake word (train with openWakeWord); stock "hey jarvis" first | `models/` |
+| 4.9 | Measure idle CPU and RAM of ear and brain, set a budget | |
+
+Done when: with the ear running and a game open, "hey Jarvis, next song" works by voice with no window appearing.
+Test early: mic shared with Discord, output device (headset vs speakers), Python cold-start time if the brain launches on demand.
+Licensing: write our own Rust against the openWakeWord spec (Apache-2.0 code). binoy's repo has no license, so use it as a design reference only. Pretrained model license unverified.
+
+## Step 5: Two-speed brain and notify
+| # | Task | Files |
+|---|---|---|
+| 5.1 | TaskManager: record, JSON state, detached worker, cancel, list | `services/tasks.py` |
+| 5.2 | Heavy worker via Claude Agent SDK behind a policy gate (needs terms check on Pro login, or API credits) | `services/workers.py` |
+| 5.3 | `notify()`: Windows toast, ntfy phone push (long random topic) | `services/notify.py` |
+| 5.4 | Tools: spawn, list, cancel task | `tools/tasks.py` |
+
+Done when: a long task finishes and the phone buzzes.
+
+## Step 6: MCP (Gmail, Calendar)
+| # | Task |
+|---|---|
+| 6.1 | MCP client in the registry: load servers, expose their tools as registry tools |
+| 6.2 | Gmail and Calendar read-only servers, OAuth tokens kept in `.env` or a gitignored file |
+| 6.3 | Approval gate for any write (policy hook in the registry) |
+
+Done when: "any unread mail?" works.
+
+---
+
+## Cross-cutting
+- Docs: update `roadmap.md`, `decisions.md` when a decision changes, and this file's boxes.
+- Commit after each step. No secrets in git (`.env` ignored).
+- One small test per non-trivial module.
+
+## Status log
+- 2026-11-16: reply streaming. `agent.stream()` and `GeminiProvider.stream()` yield text as it is written; `tts.Speaker` speaks each finished sentence (or the first clause of a long one) while the model continues, and `core/main.py` prints and speaks together. First sound ~1.8 s on a long answer, first text ~0.8 s. Stage timers `[speech-to-text]` and `[brain]` print in voice mode.
+- 2026-11-16: Gemini free tier is ~5 requests/min per model; the SDK retried silently for 9-16 s then crashed. Now `attempts=1`, `EVIE_MODEL` is a comma fallback chain (429 sidelines a model for the time Google gives), and a failed turn is spoken as "My brain is busy" and removed from history.
+- 2026-11-16: speech in. On-device faster-whisper (`base`, multilingual, `EVIE_LANG=auto` limited to `EVIE_LANGS=en,hi`) first, Groq backup. Measured on a 1.9 s clip: base 0.3-0.7 s, small ~1-2 s (and writes Hindi in Devanagari), Groq ~0.4 s. Library artist/song names go to Whisper as a prompt. `scripts/stt_compare.py` compares engines on the user's own voice.
+- 2026-11-16: hands-free listening, no Enter. `Gate`: 5-block average, threshold = 2.5x rolling median of the room (floor 250, or `EVIE_THRESHOLD`), room remembered across turns by one persistent mic stream, 0.4 s pre-roll, clicks and flat noise ignored, Whisper phantom phrases dropped, stalled or silent mic detected and reopened. Ctrl+C works (callback + queue, not a blocking read).
+- 2026-11-16: TTS. Local Kokoro (`kokoro-onnx` int8, 8 threads, `af_sarah`) first, Edge fallback, order from `EVIE_TTS`. Per-piece pauses restored (0.25 s after a sentence, 0.1 s after a comma); `EVIE_TTS_SPEED`.
+- 2026-11-16: repo regrouped into domain folders (tools/ and services/ by music, web, system, info, voice; core/ holds agent, router, registry, prompts, main; utils/ holds config and text). `scripts/` added. Handbook in `docs/handbook/`. Pushed `dev`; PR #1 to `main`.
+- 2026-11-15: `wikipedia(topic)` tool via LangChain WikipediaAPIWrapper; shared `text.shorten` (sentence-aware); REPL output forced to UTF-8 (a non-ASCII answer crashed the Windows cp1252 console). Verified live: facts -> Wikipedia, recent events -> web_search. 125 tests. Still no TAVILY_API_KEY: keyless search failed intermittently again.
+- 2026-11-15: `get_weather(location=Mumbai)` in tools/basic.py, services/weather.py: Open-Meteo (free, no key), place lookup cached per session, one spoken-style line. Default city from `EVIE_LOCATION` (tool description still says Mumbai). Verified live (Mumbai, Pune, London); ~3-4 s per answered turn, mostly the two model calls. 119 tests.
+- 2026-11-15: `web_search` (services/websearch.py, tools/web.py): answers instead of opening a browser. Tavily when `TAVILY_API_KEY` is set (not yet verified live), keyless ddgs fallback with one retry (verified: ~5 s for a full answered turn, flaky). Ads filtered, one result per site, short snippets. 113 tests. Principle recorded: design for voice, do not copy conventions.
+- 2026-11-15: `open_website(url)`: opens http(s) links in the user's default browser (Thorium here) via `webbrowser`. Only http/https; bare domains like youtube.com get https://; anything else (javascript:, ms-settings:, file:, ftp:) is refused. Tests cannot open a real browser. Verified live with Gmail. 106 tests.
+- 2026-11-15: `open_app` (services/apps.py): reads Windows' own Start menu list (`Get-StartApps`) and launches by AppID via `explorer shell:AppsFolder`, so Store apps and classic installs both work with no per-app code (Eva needed one function per app). Verified live with WhatsApp. List cached per session. Opening apps steals focus: must be off in gaming mode. 98 tests.
+- 2026-11-15: voice-driven online add works end to end (verified live: 'play hola amigo' -> options 1-5 -> 'the first one' -> termusic downloads -> Evie plays it). Background keys + screen reading via console_input (no pyautogui, removed); `tui_input.search/pick` + tools `music_search_online`, `music_pick_result`; `watcher` plays the new file; `services/text.py` cleans titles for speech. Found why 3 TUIs opened: my tests launched real windows; autouse guard added. 91 tests.
+- 2026-11-15: REPLACED own downloader with termusic's own `s` (YouTube search) feature, per user: deleted `services/online.py` and `music_download`; new `services/tui_input.py` (pyautogui + pygetwindow) types `s`, the query and Enter into the termusic window, only after verifying that window is in front (never types otherwise). `music_search_online(query)` opens that search; the user picks the result in the window. If it fails Evie reports the error; fixing termusic is the user's job. The TUI now opens in Windows Terminal (`wt`) so cover art (sixel/kitty/iterm2) renders; plain console is fallback. Fixed duplicate TUI windows: launch race (one launch function + 15 s grace). 60 tests. Never use tui_input while a game runs (gaming mode must disable it).
+- 2026-11-15: step 2.4 done. Songs by name: `services/library.py` (whole-word match on file names in `EVIE_MUSIC_DIR`, default ~/Music; one-letter words ignored), `services/online.py` (yt-dlp search/download, argv only, YouTube hosts only), tools `music_play_song`, `music_queue_song`, `music_search_online`, `music_download` (risk=write). Flow: library miss -> say so -> offer online search -> options -> user picks -> approval (Agent remembers the blocked write, user's yes runs it) -> download to library, queue, play. Bug found and fixed: termusic silently ignores adds it cannot use, so `Termusic.add` now verifies the queue grew and `music_add` rejects non-paths. 56 tests. Download not run live yet.
+- 2026-11-15: any music command now opens the termusic TUI window first (`TERMUSIC_SHOW_UI`, default on; the TUI starts the server; headless server only if off, for gaming). `play` starts at track 1 when Evie just opened the player or it was stopped (termusic otherwise resumes the saved track); new `music_play_track(n)`; `EVIE_DEBUG=1` prints tool calls. 37 tests. Verified: TUI visible, track 1 plays. Known: after a force-kill termusic may not remember the last track, so the saved-position restart branch is covered by unit tests, not seen live.
+- 2026-11-15: tools rebuilt on LangChain `@tool` + pydantic validation (30 tests). Fixed: headless server launch showed a blank console (DETACHED_PROCESS + scoop shim); now hidden console. `music_start` now opens the termusic TUI (which starts the server) and does not auto-play.
+- 2026-11-15: verified live against real termusic: "start terminal music" auto-starts the server and plays, "what is playing" works, "stop termusic" quits gracefully then force-kills termusic* (native equivalent of the PowerShell `termusic-kill-server` profile function). `music_start` and `music_stop_player` tools added, `TERMUSIC_AUTOSTART` config, 23 tests. Known gap: status gives track number, not title (protocol has no title).
+- 2026-11-15: step 2.3 done: `tools/music.py` (12 tools; transport and volume marked fast), registry gained `optional` args, 17 tests green, Gemini accepts schemas and relays the server-down message. Real termusic-server not tested yet.
+- 2026-11-15: step 2.1 (proto stubs, protobuf 6.31 gencode) and 2.2 (`services/termusic.py` client + fake-server tests, 10 tests green) done. Not yet run against the real termusic-server.
+- 2026-11-15: foundation decisions added (daemon, wake word, tool contract, game safety). Step 1b added.
+- 2026-11-15: docs created. Step 0 verified. Step 1 done: `src/evie` package, Gemini talker verified live.
