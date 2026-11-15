@@ -97,5 +97,8 @@ def no_real_processes(monkeypatch):
             return real(cmd, *a, **k)
         return inner
 
+    import webbrowser
+
+    monkeypatch.setattr(webbrowser, "open", lambda *a, **k: pytest.fail("test tried to open a real browser"))
     monkeypatch.setattr(subprocess, "Popen", guarded(real_popen))
     monkeypatch.setattr(subprocess, "run", guarded(real_run))

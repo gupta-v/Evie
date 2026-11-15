@@ -69,3 +69,34 @@ def test_single_app_json_object_is_handled(monkeypatch):
     monkeypatch.setattr(apps.shutil, "which", lambda n: "powershell")
     got = apps.list_apps(run=lambda *a, **k: subprocess.CompletedProcess(a, 0, '{"Name":"A","AppID":"b"}', ""))
     assert [a.name for a in got] == ["A"]
+
+
+@pytest.fixture
+def browser(monkeypatch):
+    opened = []
+    monkeypatch.setattr("evie.tools.apps.webbrowser.open", lambda u: opened.append(u) or True)
+    return opened
+
+
+def test_open_website_uses_the_default_browser(browser):
+    assert registry.call("open_website", {"url": "https://mail.google.com"}) == "opening mail.google.com"
+    assert browser == ["https://mail.google.com"]
+
+
+def test_bare_domain_gets_https(browser):
+    registry.call("open_website", {"url": "youtube.com"})
+    assert browser == ["https://youtube.com"]
+
+
+@pytest.mark.parametrize("bad", ["file:///c:/windows/system32/cmd.exe", "javascript:alert(1)", "ms-settings:network", "ftp://x.org/f", "https://"])
+def test_open_website_refuses_anything_but_http_urls(browser, bad):
+    assert "isn't a web address" in registry.call("open_website", {"url": bad})
+    assert browser == []
+
+
+def test_bare_domains_with_paths_get_https_but_junk_does_not(browser):
+    registry.call("open_website", {"url": "github.com/anthropics?tab=repos"})
+    assert browser == ["https://github.com/anthropics?tab=repos"]
+    for junk in ("https://host:notaport/x", "just words here", "localhost"):
+        assert "isn't a web address" in registry.call("open_website", {"url": junk})
+    assert browser == ["https://github.com/anthropics?tab=repos"]  # nothing more opened
