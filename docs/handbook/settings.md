@@ -5,7 +5,7 @@ Set in `.env` (kept across runs) or for one run in PowerShell: `$env:NAME="value
 | Setting | Default | What it does |
 |---|---|---|
 | `EVIE_PROVIDER` | `gemini` | Brain: `gemini` or `anthropic` |
-| `EVIE_MODEL` | `gemini-3.5-flash-lite` / `claude-haiku-5-5` | Override the model name |
+| `EVIE_MODEL` | `gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.5-flash,gemini-2.5-flash` / `claude-haiku-5-5` | Model name. For Gemini a comma list: the free tier allows about 5 requests a minute per model, so when one is limited Evie uses the next |
 | `EVIE_SPEAK` | off | `1` reads replies aloud in text mode too (`--voice` always does) |
 | `EVIE_TTS` | `kokoro,edge` | Voice backends in order; the next is tried if one fails. `kokoro` alone = fully local |
 | `EVIE_KOKORO_VOICE` | `af_sarah` | Local voice. Try `af_heart`, `af_bella`, `bf_emma`. Hear them: `scripts/voices_demo.py` |

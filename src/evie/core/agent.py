@@ -6,6 +6,7 @@ from evie.utils import config
 from evie.core import registry, router
 
 STUCK = "I got stuck on that one."
+BUSY = "My brain is busy right now, try again in a moment."
 YES = re.compile(r"^\W*(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|confirm|haan)\b", re.I)
 NO = re.compile(r"^\W*(no|nope|nah|cancel|don't|do not)\b", re.I)
 
@@ -40,10 +41,16 @@ class Agent:
         # providers without streaming (Claude, for now) give the whole reply as one piece
         pieces = self.provider.stream(text) if hasattr(self.provider, "stream") else [self.provider.respond(text) or ""]
         said = False
-        for piece in pieces:
-            if piece:
-                said = True
-                yield piece
+        try:
+            for piece in pieces:
+                if piece:
+                    said = True
+                    yield piece
+        except Exception as e:  # a rate limit or network failure must not end the conversation
+            if config.DEBUG:
+                print(f"[brain error] {type(e).__name__}: {str(e)[:160]}")
+            yield BUSY if not said else " ..."
+            said = True
         if not said:
             yield STUCK
         self.pending = registry.take_blocked()

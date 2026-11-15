@@ -30,3 +30,6 @@ Evie is still running in another terminal. Close it and run `uv sync` again.
 
 ## An app is not found ("open X")
 Evie opens apps by their Start menu name; "Windows Terminal" is listed as just "Terminal". Command-line tools such as Claude Code are not Start menu apps.
+
+## Replies take 5-15 seconds, or "My brain is busy right now"
+The Gemini free tier allows only about 5 requests a minute per model, and a question that uses a tool costs 2. Evie moves to the next model in `EVIE_MODEL` when one is limited, and says "My brain is busy" if all are. Waiting a minute clears it. A paid Gemini key removes the limit. `EVIE_DEBUG=1` prints the error.

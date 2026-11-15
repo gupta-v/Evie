@@ -53,3 +53,17 @@ def test_agent_streams_pieces_in_order_and_remembers_blocked_writes(monkeypatch)
     import evie.providers.gemini as g
     monkeypatch.setattr(g, "GeminiProvider", Streaming)
     assert list(agent_mod.Agent().stream("tell me")) == ["One. ", "Two."]
+
+
+def test_a_provider_failure_is_spoken_not_a_crash(monkeypatch):
+    from evie.core import agent as agent_mod
+
+    class Failing:
+        def __init__(self, model): pass
+        def stream(self, text):
+            raise RuntimeError("429")
+            yield  # makes this a generator
+
+    import evie.providers.gemini as g
+    monkeypatch.setattr(g, "GeminiProvider", Failing)
+    assert "".join(agent_mod.Agent().stream("hi")) == agent_mod.BUSY

@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PROVIDER = os.getenv("EVIE_PROVIDER", "gemini").lower()
-_DEFAULT_MODEL = {"gemini": "gemini-3.5-flash-lite", "anthropic": "claude-haiku-5-5"}
+# Gemini free tier allows ~5 requests a minute per model; a comma list lets Evie move to the next model when one is limited
+_DEFAULT_MODEL = {"gemini": "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.5-flash,gemini-2.5-flash", "anthropic": "claude-haiku-5-5"}
 MODEL = os.getenv("EVIE_MODEL") or _DEFAULT_MODEL.get(PROVIDER, "")
 
 MAX_TOOL_TURNS = 5
