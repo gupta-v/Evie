@@ -31,10 +31,28 @@ def start_server() -> None:
     exe = shutil.which("termusic-server")
     if not exe:
         raise TermusicError("I can't find termusic-server on this PC.")
-    flags = sum(getattr(subprocess, f, 0) for f in ("DETACHED_PROCESS", "CREATE_NEW_PROCESS_GROUP", "CREATE_NO_WINDOW"))
+    # Not DETACHED_PROCESS: the scoop shim spawns the real exe, and a console-less parent makes
+    # Windows open a visible console for the child. A hidden console is inherited instead.
+    flags = sum(getattr(subprocess, f, 0) for f in ("CREATE_NEW_PROCESS_GROUP", "CREATE_NO_WINDOW"))
     subprocess.Popen(
         [exe], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags
     )
+
+
+def tui_running() -> bool:
+    exe = shutil.which("tasklist")
+    if not exe:
+        return False
+    out = subprocess.run([exe, "/FI", "IMAGENAME eq termusic.exe", "/NH"], capture_output=True, text=True, timeout=10)
+    return "termusic.exe" in out.stdout.lower()
+
+
+def open_tui() -> None:
+    """Open the termusic TUI in its own console window. The TUI starts termusic-server itself."""
+    exe = shutil.which("termusic")
+    if not exe:
+        raise TermusicError("I can't find termusic on this PC.")
+    subprocess.Popen([exe], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
 
 
 def kill_processes() -> bool:
@@ -54,11 +72,15 @@ class Termusic:
         starter: Callable[[], None] | None = None,
         autostart: bool | None = None,
         killer: Callable[[], bool] | None = None,
+        tui_opener: Callable[[], None] | None = None,
+        tui_check: Callable[[], bool] | None = None,
     ):
         self.addr = addr or config.TERMUSIC_ADDR
         self.autostart = config.TERMUSIC_AUTOSTART if autostart is None else autostart
         self.starter = starter or start_server
         self.killer = killer or kill_processes
+        self.tui_opener = tui_opener or open_tui
+        self.tui_check = tui_check or tui_running
         self._channel: grpc.Channel | None = None
         self._stub: rpc.MusicPlayerStub | None = None
         self._start_tried = False
@@ -100,6 +122,19 @@ class Termusic:
             ) from e
 
     # --- lifecycle ---
+    def open_ui(self) -> str:
+        """Open the TUI (it starts the server). Does not auto-start a second server."""
+        if self.tui_check():
+            return "already open"
+        self.tui_opener()
+        self._connect()
+        try:
+            grpc.channel_ready_future(self._channel).result(timeout=START_WAIT)
+        except grpc.FutureTimeoutError as e:
+            raise TermusicError("I opened terminal music but the player didn't come up.") from e
+        self._start_tried = True  # the TUI owns the server now
+        return "opened"
+
     def stop_server(self) -> str:
         """Ask the server to quit, then force-kill leftover termusic* processes. Never auto-starts."""
         graceful = False
