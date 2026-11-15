@@ -1,5 +1,5 @@
 """Claude talker backend. Needs API credits (not a Pro subscription)."""
-from evie import prompts
+from evie.core import prompts
 from evie.utils import config
 from evie.core import registry
 

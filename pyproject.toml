@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-evie = "evie.__main__:main"
+evie = "evie.core.main:main"
 
 [build-system]
 requires = ["hatchling"]

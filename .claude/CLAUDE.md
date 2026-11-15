@@ -30,8 +30,8 @@ Not in scope now: wake word, memory, gesture control, ESP32 body, Go/Rust/React 
 ## Layout (src layout, package `evie`)
 ```
 src/evie/
-  prompts.py      system prompt text
-  core/           agent.py (talker: history, write approval), registry.py (ToolRegistry), router.py (fast regex router)
+  core/           main.py (entry point), agent.py (talker: history, write approval), prompts.py (system prompt),
+                  registry.py (ToolRegistry), router.py (fast regex router)
   providers/      LLM backends: gemini.py, anthropic.py
   tools/          what the LLM can call, one folder per domain, each imported in its __init__.py:
                   music/ (playback, volume, songs, online), web/, system/ (apps, clipboard), info/

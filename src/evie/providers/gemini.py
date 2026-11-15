@@ -1,7 +1,7 @@
 """Gemini talker backend (free tier). Manual tool loop."""
 import os
 
-from evie import prompts
+from evie.core import prompts
 from evie.utils import config
 from evie.core import registry
 
