@@ -9,6 +9,7 @@ Set in `.env` (kept across runs) or for one run in PowerShell: `$env:NAME="value
 | `EVIE_SPEAK` | off | `1` reads replies aloud in text mode too (`--voice` always does) |
 | `EVIE_TTS` | `kokoro,edge` | Voice backends in order; the next is tried if one fails. `kokoro` alone = fully local |
 | `EVIE_KOKORO_VOICE` | `af_sarah` | Local voice. Try `af_heart`, `af_bella`, `bf_emma`. Hear them: `scripts/voices_demo.py` |
+| `EVIE_TTS_SPEED` | `1.0` | How fast the local voice speaks: `0.9` slower, `1.2` faster |
 | `EVIE_VOICE` | `en-IN-NeerjaNeural` | The online Edge voice (used only as fallback) |
 | `EVIE_LANG` | `auto` | Language you speak. `auto` handles Hinglish (Hindi and English mixed). `en` or `hi` forces one, which cuts noise guesses but breaks mixing |
 | `EVIE_STT_MODEL` | `base` | On-device Whisper model. `base` = Hindi and English, about 0.7 s. `base.en` = English only. `small` = more accurate but about 2 s and writes Hindi in Devanagari |

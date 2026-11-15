@@ -33,3 +33,6 @@ Evie opens apps by their Start menu name; "Windows Terminal" is listed as just "
 
 ## Replies take 5-15 seconds, or "My brain is busy right now"
 The Gemini free tier allows only about 5 requests a minute per model, and a question that uses a tool costs 2. Evie moves to the next model in `EVIE_MODEL` when one is limited, and says "My brain is busy" if all are. Waiting a minute clears it. A paid Gemini key removes the limit. `EVIE_DEBUG=1` prints the error.
+
+## Evie misunderstands names or Hindi words
+Compare the options on your own voice: `uv run python scripts/stt_compare.py`. Say a sentence; it prints what each speech engine heard (on-device Whisper, Groq cloud Whisper, Google) and how long each took. Then set `EVIE_STT` and `EVIE_STT_MODEL` to the one that fits (see [settings.md](settings.md)).

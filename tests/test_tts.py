@@ -117,3 +117,24 @@ def test_a_long_unfinished_sentence_starts_at_its_first_comma():
     assert played == ["Coffee beans are actually seeds inside bright red berries,"]
     sp.finish()
     assert played[1] == "and in old Constantinople it was a reason for divorce"
+
+
+def test_a_sentence_gets_a_longer_pause_than_a_clause(monkeypatch, tmp_path):
+    import wave
+
+    import numpy as np
+
+    from evie.utils import config
+
+    class Fake:
+        def create(self, text, voice, lang, speed):
+            return np.ones(2400, dtype="float32"), 24000        # 0.1 s of "speech"
+
+    monkeypatch.setattr(tts, "_load_kokoro", lambda: Fake())
+    lengths = {}
+    for text in ("Hello there.", "Hello there,"):
+        path = tmp_path / "a.wav"
+        tts._kokoro_synth(text, str(path))
+        with wave.open(str(path)) as w:
+            lengths[text[-1]] = w.getnframes()
+    assert lengths["."] == 2400 + 6000 and lengths[","] == 2400 + 2400    # 0.25 s vs 0.1 s of silence

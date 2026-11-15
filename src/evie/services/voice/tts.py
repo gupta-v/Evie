@@ -84,7 +84,9 @@ def _kokoro_synth(text: str, path: str) -> None:
     import numpy as np
 
     voice = config.KOKORO_VOICE
-    audio, rate = _load_kokoro().create(text, voice=voice, lang=_LANG.get(voice[:1], "en-us"))
+    audio, rate = _load_kokoro().create(text, voice=voice, lang=_LANG.get(voice[:1], "en-us"), speed=config.TTS_SPEED)
+    # Replies are made piece by piece, so the pause Kokoro puts between sentences inside one call is lost: add it back
+    audio = np.concatenate([audio, np.zeros(int(rate * (0.25 if text.rstrip()[-1:] in ".!?" else 0.1)), dtype=audio.dtype)])
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)

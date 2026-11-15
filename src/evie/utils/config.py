@@ -30,6 +30,7 @@ VOICE = os.getenv("EVIE_VOICE") or "en-IN-NeerjaNeural"  # any Edge voice name
 TTS_ORDER = [n.strip() for n in (os.getenv("EVIE_TTS") or "kokoro,edge").split(",") if n.strip()]  # tried in order
 KOKORO_VOICE = os.getenv("EVIE_KOKORO_VOICE") or "af_sarah"  # e.g. af_heart, af_bella, bf_emma
 KOKORO_DIR = MODELS_DIR / "kokoro"
+TTS_SPEED = float(os.getenv("EVIE_TTS_SPEED") or 1.0)  # Kokoro speaking speed: 0.8 slower, 1.2 faster
 DEBUG = os.getenv("EVIE_DEBUG", "0") == "1"
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or None  # fast web search; keyless fallback is slow
 DEFAULT_LOCATION = os.getenv("EVIE_LOCATION") or "Mumbai"  # used when the user does not name a place
