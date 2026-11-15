@@ -2,7 +2,7 @@
 import re
 
 import evie.tools  # noqa: F401  (registers tools)
-from evie import config
+from evie.utils import config
 from evie.core import registry, router
 
 STUCK = "I got stuck on that one."

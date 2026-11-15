@@ -1,7 +1,7 @@
 import pytest
 
 import evie.tools  # noqa: F401
-from evie import config
+from evie.utils import config
 from evie.core import registry
 from evie.services.web import websearch
 

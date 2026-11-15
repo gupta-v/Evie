@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import Field
 
-from evie import config
+from evie.utils import config
 from evie.services.music.termusic import Termusic, TermusicError
 
 

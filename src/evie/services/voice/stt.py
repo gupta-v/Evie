@@ -10,7 +10,7 @@ import io
 import time
 import wave
 
-from evie import config
+from evie.utils import config
 
 RATE = 16000
 _BLOCK = 480  # 30 ms

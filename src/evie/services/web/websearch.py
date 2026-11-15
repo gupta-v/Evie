@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
-from evie import config
+from evie.utils import config
 from evie.utils.text import clean_title, shorten
 
 SNIPPET_CHARS = 170

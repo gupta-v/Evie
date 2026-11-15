@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 import evie.tools  # noqa: F401
-from evie import config
+from evie.utils import config
 from evie.core import registry
 from evie.core.agent import Agent
 from evie.services.music import library, tui_input

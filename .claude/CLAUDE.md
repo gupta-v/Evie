@@ -30,14 +30,14 @@ Not in scope now: wake word, memory, gesture control, ESP32 body, Go/Rust/React 
 ## Layout (src layout, package `evie`)
 ```
 src/evie/
-  config.py       env settings
-  core/           registry.py (ToolRegistry), agent.py, router.py (fast regex router)
+  prompts.py      system prompt text
+  core/           agent.py (talker: history, write approval), registry.py (ToolRegistry), router.py (fast regex router)
   providers/      LLM backends: gemini.py, anthropic.py
   tools/          what the LLM can call, one folder per domain, each imported in its __init__.py:
                   music/ (playback, volume, songs, online), web/, system/ (apps, clipboard), info/
   services/       the real work behind tools, same domains: music/ (termusic gRPC, TUI input, library),
                   web/, system/, voice/ (stt, tts)
-  utils/          small shared helpers (text.py)
+  utils/          config.py (env settings), text.py (small shared helpers)
 tests/
 docs/
 ```

@@ -13,7 +13,7 @@ from typing import Callable
 
 import grpc
 
-from evie import config
+from evie.utils import config
 from evie.services.music.termusic_pb import player_pb2 as pb
 from evie.services.music.termusic_pb import player_pb2_grpc as rpc
 

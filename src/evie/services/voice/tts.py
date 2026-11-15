@@ -12,7 +12,7 @@ import os
 import re
 import tempfile
 
-from evie import config
+from evie.utils import config
 
 _JUNK = re.compile(r"[\U0001F000-\U0001FFFF☀-➿️‍*_`#>]")
 

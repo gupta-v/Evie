@@ -1,6 +1,6 @@
 import sys
 
-from evie import config
+from evie.utils import config
 from evie.core.agent import Agent
 from evie.services.voice import tts
 

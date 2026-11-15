@@ -28,7 +28,8 @@ def test_everything_else_goes_to_the_llm(text):
 
 
 def test_agent_runs_fixed_command_without_the_llm(monkeypatch):
-    from evie.core import agent as agent_mod, registry
+    from evie.core import agent as agent_mod
+    from evie.core import registry
 
     class NoLLM:
         def __init__(self, model): pass

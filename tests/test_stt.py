@@ -1,6 +1,6 @@
 import pytest
 
-from evie import config
+from evie.utils import config
 from evie.services.voice import stt
 
 

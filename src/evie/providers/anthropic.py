@@ -1,5 +1,6 @@
 """Claude talker backend. Needs API credits (not a Pro subscription)."""
-from evie import config
+from evie import prompts
+from evie.utils import config
 from evie.core import registry
 
 
@@ -15,7 +16,7 @@ class AnthropicProvider:
         self.history.append({"role": "user", "content": text})
         for _ in range(config.MAX_TOOL_TURNS):
             msg = self.client.messages.create(
-                model=self.model, max_tokens=512, system=config.SYSTEM_PROMPT,
+                model=self.model, max_tokens=512, system=prompts.SYSTEM_PROMPT,
                 tools=registry.specs(), messages=self.history,
             )
             self.history.append({"role": "assistant", "content": msg.content})

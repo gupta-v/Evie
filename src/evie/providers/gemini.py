@@ -1,7 +1,8 @@
 """Gemini talker backend (free tier). Manual tool loop."""
 import os
 
-from evie import config
+from evie import prompts
+from evie.utils import config
 from evie.core import registry
 
 
@@ -23,7 +24,7 @@ class GeminiProvider:
             for s in registry.specs()
         ]
         self.config = types.GenerateContentConfig(
-            system_instruction=config.SYSTEM_PROMPT,
+            system_instruction=prompts.SYSTEM_PROMPT,
             tools=[types.Tool(function_declarations=decls)],
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             max_output_tokens=512,
