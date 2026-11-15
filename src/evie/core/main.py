@@ -31,6 +31,8 @@ def main():
     agent = Agent()
     voice = "--voice" in sys.argv
     config.SPEAK = config.SPEAK or voice
+    if config.SPEAK:
+        tts.warm_up()
     print("Evie voice mode: Enter, then speak. Ctrl+C to quit." if voice else "Evie text mode. Ctrl+C to quit.")
     while True:
         try:

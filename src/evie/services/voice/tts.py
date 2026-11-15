@@ -45,19 +45,46 @@ _kokoro = None
 _kokoro_lock = threading.Lock()
 
 
-def _kokoro_synth(text: str, path: str) -> None:
-    global _kokoro
-    import numpy as np
+_LANG = {"a": "en-us", "b": "en-gb", "h": "hi", "e": "es", "f": "fr-fr", "i": "it", "j": "ja"}  # first letter of a voice name
 
-    with _kokoro_lock:  # load once, even if sentences start in parallel
+
+def _load_kokoro():
+    """Load the model once (even if sentences start in parallel). 8 threads measured fastest on this
+    28-core PC: the default and 12+ were slower, 1-2 much slower."""
+    global _kokoro
+    with _kokoro_lock:
         if _kokoro is None:
             model, voices = config.KOKORO_DIR / "kokoro-v1.0.int8.onnx", config.KOKORO_DIR / "voices-v1.0.bin"
             if not (model.is_file() and voices.is_file()):
                 raise FileNotFoundError(f"Kokoro model files missing in {config.KOKORO_DIR}")
+            import onnxruntime as rt
             from kokoro_onnx import Kokoro
 
-            _kokoro = Kokoro(str(model), str(voices))
-    audio, rate = _kokoro.create(text, voice=config.KOKORO_VOICE, lang="en-us")
+            opts = rt.SessionOptions()
+            opts.intra_op_num_threads, opts.inter_op_num_threads = min(8, os.cpu_count() or 4), 1
+            session = rt.InferenceSession(str(model), sess_options=opts, providers=["CPUExecutionProvider"])
+            _kokoro = Kokoro.from_session(session, str(voices))
+    return _kokoro
+
+
+def warm_up() -> None:
+    """Load Kokoro in the background so the first reply does not pay the ~0.7 s load."""
+    if config.TTS_ORDER and config.TTS_ORDER[0] == "kokoro":
+        threading.Thread(target=lambda: _try(_load_kokoro), daemon=True).start()
+
+
+def _try(fn) -> None:
+    try:
+        fn()
+    except Exception:
+        pass  # speak() reports problems; warming up is best effort
+
+
+def _kokoro_synth(text: str, path: str) -> None:
+    import numpy as np
+
+    voice = config.KOKORO_VOICE
+    audio, rate = _load_kokoro().create(text, voice=voice, lang=_LANG.get(voice[:1], "en-us"))
     with wave.open(path, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
