@@ -11,6 +11,7 @@ import ctypes
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 from evie.utils import config
 
@@ -38,24 +39,51 @@ def _mci(cmd: str) -> None:
         raise TtsError(f"audio playback failed (mci {err})")
 
 
-def speak(text: str, synth=None, play=None) -> None:
-    """Say `text` and return when it finishes. `synth(text, path)` and `play(path)` are injectable for tests."""
-    text = clean(text)
-    if not text:
-        return
+def sentences(text: str) -> list[str]:
+    """Split at sentence ends so the first one can start playing while the rest are still being made."""
+    return [s for s in re.split(r"(?<=[.!?])\s+", text) if s]
+
+
+def _to_file(text: str, synth) -> str:
     fd, path = tempfile.mkstemp(suffix=".mp3")
     os.close(fd)
     try:
-        try:
-            (synth or (lambda t, p: asyncio.run(_synth(t, p))))(text, path)
-        except Exception as e:
-            raise TtsError("I couldn't reach the voice service.") from e
-        (play or _play)(path)
-    finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+        synth(text, path)
+    except Exception as e:
+        _remove(path)
+        raise TtsError("I couldn't reach the voice service.") from e
+    return path
+
+
+def _remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def speak(text: str, synth=None, play=None) -> None:
+    """Say `text` and return when it finishes. Sentences are synthesized in parallel and played in
+    order, so the first sound starts after ~1 sentence of work, not the whole reply.
+    `synth(text, path)` and `play(path)` are injectable for tests."""
+    parts = sentences(clean(text))
+    if not parts:
+        return
+    synth = synth or (lambda t, p: asyncio.run(_synth(t, p)))
+    files = []
+    try:
+        with ThreadPoolExecutor(max_workers=min(len(parts), 4)) as pool:
+            files = [pool.submit(_to_file, s, synth) for s in parts]
+            for f in files:
+                path = f.result()
+                try:
+                    (play or _play)(path)
+                finally:
+                    _remove(path)
+    finally:  # after the pool has finished everything: remove files made but never played
+        for f in files:
+            if f.done() and not f.cancelled() and not f.exception():
+                _remove(f.result())
 
 
 def _play(path: str) -> None:

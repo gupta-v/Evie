@@ -21,6 +21,36 @@ def test_speak_synthesizes_then_plays_then_removes_file(tmp_path):
     assert not __import__("os").path.exists(seen["path"])
 
 
+def test_sentences_play_in_order_even_if_a_later_one_is_ready_first():
+    import time
+
+    played = []
+
+    def synth(text, path):
+        time.sleep(0.2 if text.startswith("One") else 0)  # first is slowest
+        open(path, "wb").write(text.encode())
+
+    tts.speak("One. Two! Three?", synth=synth, play=lambda p: played.append(open(p, "rb").read().decode()))
+    assert played == ["One.", "Two!", "Three?"]
+
+
+def test_a_failing_sentence_stops_speech_and_leaves_no_files(tmp_path):
+    import glob
+    import pytest
+    import tempfile
+
+    before = set(glob.glob(tempfile.gettempdir() + "/*.mp3"))
+
+    def synth(text, path):
+        if text == "Two.":
+            raise OSError
+        open(path, "wb").write(b"x")
+
+    with pytest.raises(tts.TtsError):
+        tts.speak("One. Two. Three.", synth=synth, play=lambda p: None)
+    assert set(glob.glob(tempfile.gettempdir() + "/*.mp3")) == before
+
+
 def test_empty_text_says_nothing():
     tts.speak("🔥", synth=lambda *a: (_ for _ in ()).throw(AssertionError), play=lambda *a: None)
 
