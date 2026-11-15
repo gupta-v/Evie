@@ -8,7 +8,7 @@ You talk, it acts: controls music (termusic), answers questions (weather, Wikipe
 Why it exists: the user's earlier attempts (Eva, EDITH, Senku) are hardcoded command chains or text-only. Evie combines a real voice pipeline, an instant path for fixed commands, an LLM brain for the rest, and a safety gate on anything that writes, sends or deletes.
 
 ## Status (2026-11-16): working MVP, voice loop built, tuning in progress
-Repo: github.com/gupta-v/Evie. Work happens on **`dev`** (PR #1 `dev` -> `main` is open; `main` holds only an empty README until it is merged). Local `master` is stale, ignore it. 182 tests pass.
+Repo: github.com/gupta-v/Evie. Work happens on **`dev`** (PR #1 `dev` -> `main` is open; `main` holds only an empty README until it is merged). Local `master` is stale, ignore it. 190 tests pass.
 
 Built and verified live:
 - **Text and voice REPL** (`uv run evie`, `uv run evie --voice`). Voice is hands-free: the mic stays open, no key press, no wake word yet.
@@ -34,7 +34,7 @@ Not built: wake word, pausing music while listening, gaming mode, SQLite store, 
 uv sync                                   # close any running Evie first (Windows locks evie.exe)
 uv run python scripts/voice_setup.py      # downloads Kokoro + Whisper models into models/, checks keys, mic, tools
 uv run evie            # text      uv run evie --voice   # talk
-uv run pytest          # 182 tests, no network, no real windows or processes
+uv run pytest          # 190 tests, no network, no real windows or processes
 ```
 Scripts: `voice_setup.py`, `mic_check.py` (live level meter + verdict), `voices_demo.py`, `stt_compare.py` (compare speech engines on the user's voice). Settings are env vars read in `utils/config.py`, listed in `docs/handbook/settings.md`. Debug: `EVIE_DEBUG=1` prints each tool call and brain errors.
 
@@ -74,7 +74,7 @@ Tools know nothing about the agent or voice code. A new tool = a function with `
 ## Hard-won gotchas
 - **Gemini free tier:** ~5 requests/min *per model*; a tool question costs 2. The SDK silently retried for 9-16 s and then crashed. Now `attempts=1`, a comma list in `EVIE_MODEL` is the fallback chain, and a spoken "brain is busy" replaces the crash.
 - **Microphones (user's PC):** default input is a Bluetooth headset (WH-CH520). Its mic only works in call mode and sometimes returns pure silence (levels 0-1); `EVIE_MIC=Headset` worked once something else held the call link. The Realtek PC mic works but is quiet and noisy (100-400 level), so the gate threshold comes from a rolling median of the room, not the quietest moment. Check with `scripts/mic_check.py`.
-- **Whisper invents text from noise** ("Thank you", "ご視聴ありがとうございました"): handled by phantom phrases, a 0.25 s minimum, a steady-noise cut, and by dropping any language other than en/hi.
+- **Whisper invents text from noise** ("Thank you", "ご視聴ありがとうございました"): handled by phantom phrases, a 0.25 s minimum, a steady-noise cut, and by re-decoding a wrong language guess (Whisper says Bulgarian for short Indian-accented English) as English.
 - **Privacy:** hands-free with no wake word means anything above the threshold is transcribed, and with the default `EVIE_STT=groq,local` that audio goes to Groq. `EVIE_STT=local,groq` keeps it on the PC at lower accuracy. A wake word is the real fix.
 - **Windows:** console is cp1252 (output is forced to UTF-8). `uv sync` fails while `evie.exe` runs; never run `uv sync --no-install-project` (it uninstalls Evie from the venv). Bash heredocs that write `b"\0"` can produce real NUL bytes in files: check with a byte count, use `bytes(2)`.
 - **Bluetooth headset audio** drops to low quality while its mic is open (call mode). Cannot be fixed in code.
