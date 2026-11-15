@@ -1,13 +1,10 @@
-import json
-import subprocess
-
 import pytest
 
 import evie.tools  # noqa: F401
 from evie import config
 from evie.core import registry
 from evie.core.agent import Agent
-from evie.services import library, online
+from evie.services import library, tui_input
 from evie.services.termusic import Termusic
 from evie.tools import music
 
@@ -87,89 +84,112 @@ def test_play_song_with_several_matches_asks_which(lib, wired):
     assert wired.calls == []
 
 
-# --- online ---
+# --- online search is termusic's own 's' feature, typed into its window ---
 
-def _fake_run(stdout="", code=0):
-    def run(cmd, **kw):
-        run.cmd = cmd
-        return subprocess.CompletedProcess(cmd, code, stdout, "")
-    return run
+class FakeKeys:
+    """Stands in for pyautogui + pygetwindow so no real keys are ever sent in tests."""
 
+    def __init__(self, title="Evie Termusic", found=True, active_ok=True):
+        self.typed, self.found, self.active_ok, self.title = [], found, active_ok, title
 
-def test_online_search_parses_results_and_uses_argv_not_shell(monkeypatch):
-    monkeypatch.setattr(online.shutil, "which", lambda n: "yt-dlp")
-    line = json.dumps({"id": "abc", "title": "I Guess", "channel": "Artist", "duration": 201})
-    run = _fake_run(line + "\nnot json\n")
-    res = online.search("i guess; rm -rf /", run=run)
-    assert res == [{"title": "I Guess", "channel": "Artist", "seconds": 201, "url": "https://www.youtube.com/watch?v=abc"}]
-    assert isinstance(run.cmd, list) and "ytsearch5:i guess; rm -rf /" in run.cmd  # one argv item, no shell
+    def install(self, monkeypatch):
+        import sys
+        import types
 
-
-def test_download_rejects_non_youtube_and_option_like_urls(tmp_path):
-    for bad in ("https://evil.example/x", "--exec=calc", "file:///c:/x", "http://youtube.com/watch?v=1"):
-        with pytest.raises(online.OnlineError):
-            online.download(bad, tmp_path)
-
-
-def test_download_returns_file_path_and_separates_url(monkeypatch, tmp_path):
-    monkeypatch.setattr(online.shutil, "which", lambda n: "yt-dlp")
-    run = _fake_run(str(tmp_path / "I Guess [abc].opus") + "\n")
-    path = online.download("https://www.youtube.com/watch?v=abc", tmp_path, run=run)
-    assert path.name == "I Guess [abc].opus"
-    assert run.cmd[-2:] == ["--", "https://www.youtube.com/watch?v=abc"]
+        win = types.SimpleNamespace(title=self.title, activate=lambda: None)
+        gw = types.SimpleNamespace(
+            getWindowsWithTitle=lambda t: [win] if self.found else [],
+            getActiveWindow=lambda: win if self.active_ok else types.SimpleNamespace(title="Some Game"),
+        )
+        pag = types.SimpleNamespace(
+            press=lambda k: self.typed.append(("press", k)),
+            write=lambda text, interval=0: self.typed.append(("write", text)),
+        )
+        monkeypatch.setitem(sys.modules, "pygetwindow", gw)
+        monkeypatch.setitem(sys.modules, "pyautogui", pag)
+        monkeypatch.setattr(tui_input.time, "sleep", lambda s: None)
 
 
-def test_search_tool_formats_options(monkeypatch):
-    monkeypatch.setattr(online, "search", lambda q: [{"title": "I Guess", "channel": "A", "seconds": 125, "url": "https://www.youtube.com/watch?v=abc"}])
+def test_search_online_opens_tui_then_types_s_query_enter(wired, monkeypatch):
+    keys = FakeKeys()
+    keys.install(monkeypatch)
+    out = registry.call("music_search_online", {"query": "i guess krsna"})
+    assert keys.typed == [("press", "s"), ("write", "i guess krsna"), ("press", "enter")]
+    assert "Opened termusic's YouTube search" in out
+
+
+def test_search_online_types_nothing_if_termusic_window_is_not_in_front(wired, monkeypatch):
+    keys = FakeKeys(active_ok=False)  # e.g. a game has focus
+    keys.install(monkeypatch)
     out = registry.call("music_search_online", {"query": "i guess"})
-    assert out.startswith("1. I Guess by A (2:05) https://")
+    assert keys.typed == [] and "typed nothing" in out
 
 
-# --- approval gate: download needs the user's yes ---
+def test_search_online_reports_missing_window_and_non_ascii(wired, monkeypatch):
+    keys = FakeKeys(found=False)
+    keys.install(monkeypatch)
+    assert "can't find the termusic window" in registry.call("music_search_online", {"query": "i guess"})
+    assert "plain English" in registry.call("music_search_online", {"query": "अरज"})
+    assert keys.typed == []
+
+
+# --- approval gate: any write tool needs the user's yes ---
+
+RAN = []
+
+
+@registry.tool(name="_t_danger", risk="write")
+def _danger(what: str) -> str:
+    """Test write tool.
+
+    Args:
+        what: anything
+    """
+    RAN.append(what)
+    return f"did {what}"
+
 
 class FakeProvider:
-    """Scripted model: first turn calls the write tool, later turns just echo."""
+    """Scripted model: 'go' calls the write tool, anything else just echoes."""
 
     def __init__(self):
         self.seen = []
 
     def respond(self, text):
         self.seen.append(text)
-        if text == "get it":
-            registry.call("music_download", {"url": "https://www.youtube.com/watch?v=abc", "title": "I Guess"})
-            return "Download I Guess? Say yes."
+        if text == "go":
+            registry.call("_t_danger", {"what": "thing"})
+            return "Do the thing? Say yes."
         return "ok"
 
 
 @pytest.fixture
-def agent(monkeypatch, lib, wired):
+def agent():
+    RAN.clear()
     a = Agent.__new__(Agent)
     a.provider, a.pending = FakeProvider(), None
-    monkeypatch.setattr(online.shutil, "which", lambda n: "yt-dlp")
-    monkeypatch.setattr(online.subprocess, "run", _fake_run(str(lib / "I Guess [abc].opus") + "\n"))
-    (lib / "I Guess [abc].opus").write_bytes(b"x")
     return a
 
 
-def test_download_is_blocked_until_user_says_yes(agent, lib):
-    assert agent.respond("get it") == "Download I Guess? Say yes."
-    assert agent.pending and agent.pending[0] == "music_download"
+def test_write_is_blocked_until_user_says_yes(agent):
+    assert agent.respond("go") == "Do the thing? Say yes."
+    assert agent.pending == ("_t_danger", {"what": "thing"}) and RAN == []
     agent.respond("yes please")
-    assert "Result of music_download: downloaded I Guess [abc]" in agent.provider.seen[-1]
-    assert agent.pending is None
+    assert RAN == ["thing"]
+    assert "Result of _t_danger: did thing" in agent.provider.seen[-1] and agent.pending is None
 
 
-def test_user_no_discards_pending_and_never_downloads(agent):
-    agent.respond("get it")
+def test_user_no_discards_pending_and_never_runs_it(agent):
+    agent.respond("go")
     agent.respond("no thanks")
-    assert agent.pending is None
+    assert agent.pending is None and RAN == []
     assert agent.provider.seen[-1].startswith("The user declined")
 
 
 def test_unrelated_reply_drops_pending(agent):
-    agent.respond("get it")
+    agent.respond("go")
     agent.respond("what time is it")
-    assert agent.pending is None
+    assert agent.pending is None and RAN == []
     assert agent.provider.seen[-1] == "what time is it"
 
 

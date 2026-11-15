@@ -20,6 +20,7 @@ STATUS = {0: "stopped", 1: "playing", 2: "paused"}
 VOLUME_STEP = 5
 RPC_TIMEOUT = 3.0
 START_WAIT = 10.0
+UI_GRACE = 15.0  # seconds to trust our own TUI launch before checking the process list again
 
 
 class TermusicError(Exception):
@@ -48,11 +49,18 @@ def tui_running() -> bool:
 
 
 def open_tui() -> None:
-    """Open the termusic TUI in its own console window. The TUI starts termusic-server itself."""
+    """Open the termusic TUI in its own window. The TUI starts termusic-server itself.
+
+    Windows Terminal when available: cover art uses sixel/kitty/iterm2 graphics, which a plain
+    console window cannot draw (it falls back to blurry blocks)."""
     exe = shutil.which("termusic")
     if not exe:
         raise TermusicError("I can't find termusic on this PC.")
-    subprocess.Popen([exe], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+    wt = shutil.which("wt")
+    if wt:
+        subprocess.Popen([wt, "-w", "new", "new-tab", "--title", "Evie Termusic", "--suppressApplicationTitle", "--", exe])
+    else:
+        subprocess.Popen([exe], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
 
 
 def kill_processes() -> bool:
@@ -84,6 +92,7 @@ class Termusic:
         self.tui_check = tui_check or tui_running
         self.show_ui = show_ui  # False by default so tests never open a real window
         self._ui_checked = False
+        self._ui_opened_at = float("-inf")  # monotonic time of our last TUI launch
         self._channel: grpc.Channel | None = None
         self._stub: rpc.MusicPlayerStub | None = None
         self._start_tried = False
@@ -98,14 +107,25 @@ class Termusic:
     def _down(self, e: grpc.RpcError) -> bool:
         return e.code() in (grpc.StatusCode.UNAVAILABLE, grpc.StatusCode.DEADLINE_EXCEEDED)
 
+    def _open_if_missing(self) -> bool:
+        """The only place the TUI is launched. True if a window was just opened.
+
+        A freshly launched window takes ~1 s to appear in the process list, so for UI_GRACE seconds
+        after a launch we trust our own launch instead of asking again (asking again opened duplicates).
+        """
+        if time.monotonic() - self._ui_opened_at < UI_GRACE or self.tui_check():
+            return False
+        self.tui_opener()
+        self._ui_opened_at = time.monotonic()
+        self._fresh = True
+        return True
+
     def _ensure_ui(self) -> None:
         """Once per session: if the TUI window isn't open, open it. The TUI starts the server."""
         if not self.show_ui or self._ui_checked:
             return
         self._ui_checked = True
-        if not self.tui_check():
-            self.tui_opener()
-            self._fresh = True
+        self._open_if_missing()
 
     def _ensure_server(self) -> None:
         """Get the server up once (TUI-owned if show_ui, else headless), wait for the channel."""
@@ -139,12 +159,10 @@ class Termusic:
 
     # --- lifecycle ---
     def open_ui(self) -> str:
-        """Open the TUI (it starts the server). Does not auto-start a second server."""
+        """Open the TUI if it isn't open (it starts the server). Does not auto-start a second server."""
         self._ui_checked = True
-        if self.tui_check():
+        if not self._open_if_missing():
             return "already open"
-        self.tui_opener()
-        self._fresh = True
         self._connect()
         try:
             grpc.channel_ready_future(self._channel).result(timeout=START_WAIT)
@@ -168,6 +186,7 @@ class Termusic:
         self._channel = self._stub = None
         self._start_tried = False  # allow a later start
         self._ui_checked = False  # reopen the TUI on the next command
+        self._ui_opened_at = float("-inf")
         return "stopped" if graceful or killed else "wasn't running"
 
     # --- state ---

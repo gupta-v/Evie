@@ -170,3 +170,44 @@ def test_play_track_picks_position_and_validates(player):
     assert c.play_track(2) == "playing track 2"
     assert "PlaySpecific:1" in player.calls
     assert c.play_track(9) == "the queue has 2 tracks"
+
+
+def test_open_tui_prefers_windows_terminal_for_cover_art(monkeypatch):
+    import evie.services.termusic as t
+
+    launched = []
+    monkeypatch.setattr(t.shutil, "which", lambda n: {"termusic": "C:/s/termusic.exe", "wt": "C:/w/wt.exe"}.get(n))
+    monkeypatch.setattr(t.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
+    t.open_tui()
+    assert launched == [["C:/w/wt.exe", "-w", "new", "new-tab", "--title", "Evie Termusic", "--suppressApplicationTitle", "--", "C:/s/termusic.exe"]]
+
+
+def test_open_tui_falls_back_to_plain_console_without_wt(monkeypatch):
+    import evie.services.termusic as t
+
+    launched = []
+    monkeypatch.setattr(t.shutil, "which", lambda n: "C:/s/termusic.exe" if n == "termusic" else None)
+    monkeypatch.setattr(t.subprocess, "Popen", lambda cmd, **kw: launched.append((cmd, kw)))
+    t.open_tui()
+    assert launched[0][0] == ["C:/s/termusic.exe"] and "creationflags" in launched[0][1]
+
+
+def test_tui_launched_once_even_if_process_is_slow_to_appear(player):
+    # Windows Terminal needs ~1 s before termusic.exe shows up, so tui_check keeps saying "no"
+    opened = []
+    c = Termusic(player.client.addr, show_ui=True, tui_opener=lambda: opened.append(1), tui_check=lambda: False)
+    c.status()  # first music call launches it
+    assert c.open_ui() == "already open"  # the explicit "start terminal music" call must not launch again
+    c.open_ui()
+    assert opened == [1]
+
+
+def test_tui_relaunched_after_grace_if_user_closed_it(player, monkeypatch):
+    import evie.services.termusic as t
+
+    opened = []
+    c = Termusic(player.client.addr, show_ui=True, tui_opener=lambda: opened.append(1), tui_check=lambda: False)
+    c.open_ui()
+    monkeypatch.setattr(t, "UI_GRACE", 0)  # grace over: the window is really gone
+    assert c.open_ui() == "opened"
+    assert opened == [1, 1]

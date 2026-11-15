@@ -8,7 +8,7 @@ from pydantic import Field
 
 from evie import config
 from evie.core.registry import tool
-from evie.services import library, online
+from evie.services import library, tui_input
 from evie.services.termusic import Termusic, TermusicError
 
 _client: Termusic | None = None
@@ -248,33 +248,13 @@ def music_queue_song(name: Annotated[str, Field(min_length=1)]) -> str:
 @tool
 @_speakable
 def music_search_online(query: Annotated[str, Field(min_length=1)]) -> str:
-    """Search YouTube for a song the library does not have, only after the user agrees to search.
-    Returns numbered options; read the first few to the user and ask which one to add.
+    """Open termusic's own YouTube search for a song the library does not have, only after the user
+    agrees to search. The user picks and downloads the result in the termusic window. If this reports
+    an error, say what it said and stop; do not try another way to download.
 
     Args:
         query: Song title and artist to search for.
     """
-    try:
-        results = online.search(query)
-    except online.OnlineError as e:
-        return str(e)
-    if not results:
-        return "No online results."
-    return _numbered([f"{r['title']} by {r['channel']} ({r['seconds'] // 60}:{r['seconds'] % 60:02d}) {r['url']}" for r in results])
-
-
-@tool(risk="write")
-@_speakable
-def music_download(url: Annotated[str, Field(min_length=1)], title: Annotated[str, Field(min_length=1)]) -> str:
-    """Download a chosen online result into the user's music library, add it to the queue and play it.
-    Only call with a url from music_search_online that the user picked.
-
-    Args:
-        url: The YouTube link of the chosen result.
-        title: The title of the chosen result, for confirming with the user.
-    """
-    try:
-        path = online.download(url, config.MUSIC_DIR)
-    except online.OnlineError as e:
-        return str(e)
-    return f"downloaded {path.stem}. {_queue_and_play(path)}"
+    _c().open_ui()
+    tui_input.youtube_search(query)
+    return f"Opened termusic's YouTube search for {query}. The user picks the result in the window."
