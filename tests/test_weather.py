@@ -80,3 +80,33 @@ def test_tool_turns_errors_into_sentences(monkeypatch):
 
     monkeypatch.setattr(weather, "weather", boom)
     assert registry.call("get_weather", {"location": "X"}) == "I couldn't find a place called X."
+
+
+def test_night_is_flagged_so_the_past_high_is_not_promised(monkeypatch):
+    net = fake_net()
+
+    def night(url, params=None, timeout=None):
+        r = net(url, params=params, timeout=timeout)
+        j = r.json()
+        if "current" in j:
+            j["current"]["is_day"] = 0
+        return r
+
+    assert weather.weather("Mumbai", get=night).endswith("has already passed.")
+
+
+def test_reports_local_time_and_age_of_reading():
+    from datetime import datetime, timezone
+
+    net = fake_net()
+
+    def timed(url, params=None, timeout=None):
+        r = net(url, params=params, timeout=timeout)
+        j = r.json()
+        if "current" in j:
+            j["current"]["time"] = "2026-11-15T21:15"  # local, +05:30
+            j["utc_offset_seconds"] = 19800
+        return r
+
+    now = datetime(2026, 11, 15, 15, 50, tzinfo=timezone.utc)  # 21:20 local
+    assert "It is 9:15 PM there, updated 5 minutes ago." in weather.weather("Mumbai", get=timed, now=now)

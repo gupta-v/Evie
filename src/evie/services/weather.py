@@ -2,6 +2,7 @@
 
 Two calls: find the place by name, then its forecast. Place lookups are remembered for the session.
 """
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 _GEO = "https://geocoding-api.open-meteo.com/v1/search"
@@ -48,11 +49,23 @@ def _num(x) -> int:
     return round(x)
 
 
-def weather(location: str, get: Callable | None = None) -> str:
+def _stamp(d: dict, now: datetime) -> str:
+    """'9:20 PM there, updated 3 minutes ago' from Open-Meteo's local reading time; '' if it gave none."""
+    try:
+        local = datetime.fromisoformat(d["current"]["time"])
+        age = now - (local - timedelta(seconds=d["utc_offset_seconds"])).replace(tzinfo=timezone.utc)
+    except (KeyError, ValueError):
+        return ""
+    mins = max(0, int(age.total_seconds() // 60))
+    when = "just now" if mins < 1 else f"{mins} minute{'s' * (mins != 1)} ago"
+    return f" It is {local.strftime('%I:%M %p').lstrip('0')} there, updated {when}."
+
+
+def weather(location: str, get: Callable | None = None, now: datetime | None = None) -> str:
     p = _place(location, get)
     d = _get(_FORECAST, {
         "latitude": p["latitude"], "longitude": p["longitude"], "timezone": "auto", "forecast_days": 1,
-        "current": "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
+        "current": "is_day,temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max",
     }, get)
     c, day = d["current"], d["daily"]
@@ -61,4 +74,6 @@ def weather(location: str, get: Callable | None = None) -> str:
     out += f" Today {_num(day['temperature_2m_min'][0])} to {_num(day['temperature_2m_max'][0])}"
     rain = (day.get("precipitation_probability_max") or [None])[0]
     out += f", {_num(rain)} percent chance of rain." if rain is not None else "."
-    return out + f" Wind {_num(c['wind_speed_10m'])} kilometres per hour."
+    out += f" Wind {_num(c['wind_speed_10m'])} kilometres per hour."
+    out += _stamp(d, now or datetime.now(timezone.utc))
+    return out + ("" if c.get("is_day", 1) else " It is night there now, so today's high has already passed.")
