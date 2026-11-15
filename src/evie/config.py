@@ -21,4 +21,5 @@ TERMUSIC_AUTOSTART = os.getenv("TERMUSIC_AUTOSTART", "1") == "1"
 TERMUSIC_SHOW_UI = os.getenv("TERMUSIC_SHOW_UI", "1") == "1"
 DEBUG = os.getenv("EVIE_DEBUG", "0") == "1"
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY") or None  # fast web search; keyless fallback is slow
+DEFAULT_LOCATION = os.getenv("EVIE_LOCATION") or "Mumbai"  # used when the user does not name a place
 MUSIC_DIR = Path(os.getenv("EVIE_MUSIC_DIR") or Path.home() / "Music")

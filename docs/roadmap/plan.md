@@ -103,6 +103,7 @@ Done when: "any unread mail?" works.
 - One small test per non-trivial module.
 
 ## Status log
+- 2026-11-15: `get_weather(location=Mumbai)` in tools/basic.py, services/weather.py: Open-Meteo (free, no key), place lookup cached per session, one spoken-style line. Default city from `EVIE_LOCATION` (tool description still says Mumbai). Verified live (Mumbai, Pune, London); ~3-4 s per answered turn, mostly the two model calls. 119 tests.
 - 2026-11-15: `web_search` (services/websearch.py, tools/web.py): answers instead of opening a browser. Tavily when `TAVILY_API_KEY` is set (not yet verified live), keyless ddgs fallback with one retry (verified: ~5 s for a full answered turn, flaky). Ads filtered, one result per site, short snippets. 113 tests. Principle recorded: design for voice, do not copy conventions.
 - 2026-11-15: `open_website(url)`: opens http(s) links in the user's default browser (Thorium here) via `webbrowser`. Only http/https; bare domains like youtube.com get https://; anything else (javascript:, ms-settings:, file:, ftp:) is refused. Tests cannot open a real browser. Verified live with Gmail. 106 tests.
 - 2026-11-15: `open_app` (services/apps.py): reads Windows' own Start menu list (`Get-StartApps`) and launches by AppID via `explorer shell:AppsFolder`, so Store apps and classic installs both work with no per-app code (Eva needed one function per app). Verified live with WhatsApp. List cached per session. Opening apps steals focus: must be off in gaming mode. 98 tests.
