@@ -19,9 +19,10 @@ GROQ_API_KEYS = [k for k in (os.getenv(n) for n in ("GROQ_API_KEY", "GROQ_API_KE
 _mic = os.getenv("EVIE_MIC") or None  # input device: index or name part; default is the system default
 MIC = int(_mic) if _mic and _mic.isdigit() else _mic
 STT_ORDER = [n.strip() for n in (os.getenv("EVIE_STT") or "local,groq").split(",") if n.strip()]  # speech-to-text backends, tried in order
-STT_MODEL = os.getenv("EVIE_STT_MODEL") or "base.en"  # on-device Whisper: tiny.en, base.en, small.en (slower, more accurate)
+STT_MODEL = os.getenv("EVIE_STT_MODEL") or "base"  # on-device Whisper. base = Hindi+English (Hinglish), ~0.7 s; base.en = English only; small = ~2 s and writes Hindi in Devanagari
+STT_LANGS = tuple(x.strip() for x in (os.getenv("EVIE_LANGS") or "en,hi").split(",") if x.strip())  # with EVIE_LANG=auto: speech detected as any other language is treated as noise
 MODELS_DIR = Path(__file__).resolve().parents[3] / "models"
-STT_LANGUAGE = os.getenv("EVIE_LANG") or "en"  # what you speak (ISO code, e.g. hi); stops Whisper guessing Japanese from noise
+STT_LANGUAGE = os.getenv("EVIE_LANG") or "auto"  # "auto" detects (Hinglish); "en" or "hi" forces one language, which stops guesses from noise but breaks Hinglish
 THRESHOLD = float(os.getenv("EVIE_THRESHOLD") or 0) or None  # fixed speech level; unset = learn the room
 SPEAK = os.getenv("EVIE_SPEAK", "0") == "1"  # read replies aloud
 VOICE = os.getenv("EVIE_VOICE") or "en-IN-NeerjaNeural"  # any Edge voice name

@@ -193,6 +193,23 @@ def is_phantom(text: str) -> bool:
 
 _local = None
 _local_lock = threading.Lock()
+_hint_cache: list[str] = []
+
+
+def _prompt() -> str:
+    """Whisper's prompt: the name Evie plus the library's artist and song names (spelled as the files are)."""
+    if not _hint_cache:
+        try:
+            from evie.services.music import library
+
+            _hint_cache.append("Hey Evie. " + library.vocab_hint())
+        except Exception:
+            _hint_cache.append("Hey Evie.")  # no library is not a reason to fail
+    return _hint_cache[0]
+
+
+def _language():
+    return None if config.STT_LANGUAGE == "auto" else config.STT_LANGUAGE
 
 
 def _load_local():
@@ -224,9 +241,12 @@ def _transcribe_local(pcm: bytes) -> str:
     import numpy as np
 
     audio = np.frombuffer(pcm, dtype="int16").astype("float32") / 32768
-    segments, _ = _load_local().transcribe(audio, language=config.STT_LANGUAGE, beam_size=1,
-                                           condition_on_previous_text=False, initial_prompt="Hey Evie.")
-    return " ".join(s.text.strip() for s in segments).strip()
+    segments, info = _load_local().transcribe(audio, language=_language(), beam_size=1,
+                                              condition_on_previous_text=False, initial_prompt=_prompt())
+    text = " ".join(s.text.strip() for s in segments).strip()
+    if _language() is None and info.language not in config.STT_LANGS:
+        return ""  # Whisper "hears" Japanese or Welsh in noise: only the languages you speak count
+    return text
 
 
 def transcribe(pcm: bytes, post=None) -> str:
@@ -262,7 +282,7 @@ def _transcribe_groq(pcm: bytes, post=None) -> str:
         try:
             r = (post or httpx.post)(
                 _URL, headers={"Authorization": f"Bearer {key}"}, timeout=15,
-                files={"file": ("speech.wav", wav, "audio/wav")}, data={"model": _MODEL, "response_format": "text", "language": config.STT_LANGUAGE, "prompt": "Hey Evie."},
+                files={"file": ("speech.wav", wav, "audio/wav")}, data={"model": _MODEL, "response_format": "text", "prompt": _prompt(), **({"language": _language()} if _language() else {})},
             )
         except httpx.HTTPError as e:
             raise SttError("I couldn't reach the speech service.") from e

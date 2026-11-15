@@ -45,3 +45,28 @@ def search(query: str, root: Path | None = None, limit: int = 5) -> list[Match]:
             out.append(Match(p, hit, min(len(q) / max(len(name), 1), 1.0)))
     out.sort(key=lambda m: (m.hit, m.cover), reverse=True)
     return out[:limit]
+
+
+def vocab_hint(root: Path | None = None, max_chars: int = 400) -> str:
+    """The library's most common artists, then song titles, as one line of names. Fed to speech-to-text
+    so Whisper spells "Anuv Jain" or "Arz Kiya Hai" the way the files do instead of guessing English words."""
+    from collections import Counter
+
+    from evie.utils.text import clean_title
+
+    artists, titles = Counter(), []
+    for p in scan(root):
+        title, _, who = p.stem.rpartition(" - ")
+        if not title:
+            title, who = p.stem, ""
+        for a in who.split(","):
+            if a.strip():
+                artists[a.strip()] += 1
+        titles.append(clean_title(title))
+    names = [a for a, _ in artists.most_common(25)] + titles
+    out = []
+    for n in dict.fromkeys(names):  # unique, keeps order
+        if sum(len(x) + 2 for x in out) + len(n) > max_chars:
+            break
+        out.append(n)
+    return ", ".join(out)

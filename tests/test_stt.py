@@ -175,3 +175,20 @@ def test_the_room_is_remembered_between_recordings():
     assert g.threshold == 250                   # no slow start
     feed(g, [3000] * 6)
     assert g.spoke
+
+
+def test_auto_language_only_accepts_the_languages_you_speak(monkeypatch):
+    from types import SimpleNamespace as NS
+
+    monkeypatch.setattr(config, "STT_LANGUAGE", "auto")
+    monkeypatch.setattr(config, "STT_LANGS", ("en", "hi"))
+
+    def fake(lang, text):
+        model = NS(transcribe=lambda audio, **k: ([NS(text=text)], NS(language=lang)))
+        monkeypatch.setattr(stt, "_load_local", lambda: model)
+
+    pcm = bytes(2) * 100
+    fake("hi", " anuv jain ka gaana chalao ")
+    assert stt._transcribe_local(pcm) == "anuv jain ka gaana chalao"
+    fake("ja", "ご視聴ありがとうございました")
+    assert stt._transcribe_local(pcm) == ""
