@@ -31,6 +31,7 @@ class R:
 @pytest.fixture(autouse=True)
 def fresh_keys(monkeypatch):
     monkeypatch.setattr(stt, "_dead", {})
+    monkeypatch.setattr(config, "STT_ORDER", ["groq"])  # tests of the cloud path; local is tested below
 
 
 def test_rotates_to_next_key_when_rate_limited(monkeypatch):
@@ -93,7 +94,7 @@ def _blocks(level, n):
 def test_record_returns_the_utterance_and_stops_after_quiet():
     audio = _blocks(40, 20) + _blocks(3000, 20) + _blocks(40, 40)   # room, speech, quiet
     pcm = stt.record(blocks=iter(audio))
-    assert len(pcm) == (stt.PREROLL_BLOCKS + 20 + 33) * 480 * 2  # lead-in, speech, and the second of quiet that ended it
+    assert len(pcm) == (stt.PREROLL_BLOCKS + 20 + 23) * 480 * 2  # lead-in, speech, and the 0.7 s of quiet that ended it
 
 
 def test_record_ignores_a_blip():
@@ -102,7 +103,7 @@ def test_record_ignores_a_blip():
 
 def test_a_click_then_real_speech_returns_the_speech():
     audio = _blocks(40, 15) + _blocks(9000, 1) + _blocks(40, 40) + _blocks(3000, 20) + _blocks(40, 40)
-    assert len(stt.record(blocks=iter(audio))) == (stt.PREROLL_BLOCKS + 20 + 33) * 480 * 2
+    assert len(stt.record(blocks=iter(audio))) == (stt.PREROLL_BLOCKS + 20 + 23) * 480 * 2
 
 
 def test_a_mic_that_gives_only_silence_is_an_error_not_a_freeze():
@@ -139,3 +140,16 @@ def test_the_spoken_language_is_sent_to_whisper(monkeypatch):
         return R(200, "namaste")
 
     assert stt.transcribe(bytes(2), post=post) == "namaste" and seen["language"] == "hi"
+
+
+def test_on_device_speech_is_tried_first_and_the_cloud_is_the_backup(monkeypatch):
+    monkeypatch.setattr(config, "STT_ORDER", ["local", "groq"])
+    monkeypatch.setattr(config, "GROQ_API_KEYS", ["k"])
+    monkeypatch.setattr(stt, "_transcribe_local", lambda pcm: "from this pc")
+    assert stt.transcribe(b"", post=lambda *a, **k: pytest.fail("cloud must not be called")) == "from this pc"
+
+    def broken(pcm):
+        raise RuntimeError("model missing")
+
+    monkeypatch.setattr(stt, "_transcribe_local", broken)
+    assert stt.transcribe(b"", post=lambda *a, **k: R(200, "from the cloud")) == "from the cloud"

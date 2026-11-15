@@ -35,6 +35,10 @@ def main():
     config.SPEAK = config.SPEAK or voice
     if config.SPEAK:
         tts.warm_up()
+    if voice:
+        from evie.services.voice import stt
+
+        stt.warm_up()
     print("Evie voice mode: just talk. Ctrl+C to quit." if voice else "Evie text mode. Ctrl+C to quit.")
     while True:
         try:

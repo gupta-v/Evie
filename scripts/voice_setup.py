@@ -1,6 +1,6 @@
 """One-time setup and health check: `uv run python scripts/voice_setup.py`. Safe to run again.
 
-Downloads the Kokoro voice files if missing, checks keys (names only, never values), the microphone,
+Downloads the Kokoro voice files and the on-device Whisper model if missing, checks keys (names only, never values), the microphone,
 and the tools Evie drives. Does not change .env or install anything else.
 """
 import os
@@ -44,6 +44,23 @@ def kokoro() -> None:
         line(True, f"voice file {name}")
 
 
+def whisper() -> None:
+    """On-device speech-to-text model (faster-whisper) into models/whisper/."""
+    from evie.utils import config
+
+    if config.STT_ORDER[:1] != ["local"]:
+        line(None, f"on-device speech model skipped (EVIE_STT={','.join(config.STT_ORDER)})")
+        return
+    from faster_whisper import download_model
+
+    print(f"      checking speech model {config.STT_MODEL} (downloads once, about 150 MB for base.en) ...")
+    try:
+        download_model(config.STT_MODEL, cache_dir=str(ROOT / "models" / "whisper"))
+        line(True, f"speech model {config.STT_MODEL}")
+    except Exception as e:
+        line(False, f"speech model {config.STT_MODEL} ({type(e).__name__}); Evie will use Groq instead")
+
+
 def keys() -> None:
     env = ROOT / ".env"
     if not env.is_file():
@@ -77,5 +94,6 @@ def machine() -> None:
 if __name__ == "__main__":
     keys()
     kokoro()
+    whisper()
     machine()
     print("\nNext: uv run evie        (text)\n      uv run evie --voice  (talk)")

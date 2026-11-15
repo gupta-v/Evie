@@ -8,6 +8,7 @@ shortcut: the loudness gate misjudges noisy rooms or music playing through speak
 """
 import io
 import re
+import threading
 import time
 import wave
 
@@ -84,7 +85,7 @@ def _mic_blocks():
                 raise SttError("The microphone stopped responding.") from None
 
 
-def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_seconds: float = 1.0, blocks=None) -> bytes:
+def record(max_seconds: float = 20, wait_seconds: float | None = 8, quiet_seconds: float = 0.7, blocks=None) -> bytes:
     """Raw 16 kHz mono int16 PCM of one utterance (at most `max_seconds` long); b'' if nobody spoke or
     it was only a blip. Waits `wait_seconds` for speech to start (None = forever).
     Raises SttError if the mic stalls or gives only silence for 5 s (a muted or mis-switched Bluetooth
@@ -142,7 +143,65 @@ def is_phantom(text: str) -> bool:
     return re.sub(r"[^a-z ]", "", text.lower()).strip() in _PHANTOMS
 
 
+_local = None
+_local_lock = threading.Lock()
+
+
+def _load_local():
+    """faster-whisper (CTranslate2, int8, CPU), loaded once; files live in models/whisper/."""
+    global _local
+    with _local_lock:
+        if _local is None:
+            from faster_whisper import WhisperModel
+
+            _local = WhisperModel(config.STT_MODEL, device="cpu", compute_type="int8", cpu_threads=8,
+                                  download_root=str(config.MODELS_DIR / "whisper"))
+    return _local
+
+
+def warm_up() -> None:
+    """Load the on-device model in the background so the first sentence does not wait for it."""
+    if config.STT_ORDER and config.STT_ORDER[0] == "local":
+        threading.Thread(target=lambda: _quiet(_load_local), daemon=True).start()
+
+
+def _quiet(fn) -> None:
+    try:
+        fn()
+    except Exception:
+        pass  # transcribe() reports problems; warming up is best effort
+
+
+def _transcribe_local(pcm: bytes) -> str:
+    import numpy as np
+
+    audio = np.frombuffer(pcm, dtype="int16").astype("float32") / 32768
+    segments, _ = _load_local().transcribe(audio, language=config.STT_LANGUAGE, beam_size=1,
+                                           condition_on_previous_text=False, initial_prompt="Hey Evie.")
+    return " ".join(s.text.strip() for s in segments).strip()
+
+
 def transcribe(pcm: bytes, post=None) -> str:
+    """Text for `pcm`, from the first backend in EVIE_STT that works ("local" = on this PC, "groq" = cloud).
+    Phantom phrases come back as ''. Raises SttError if every backend fails."""
+    error = SttError("No speech backend is configured.")
+    for name in config.STT_ORDER:
+        try:
+            text = _transcribe_local(pcm) if name == "local" else _transcribe_groq(pcm, post)
+        except SttError as e:
+            error = e
+            continue
+        except Exception as e:
+            if name != "local":
+                raise
+            error = SttError("The on-device speech model failed.")
+            error.__cause__ = e
+            continue
+        return "" if is_phantom(text) else text
+    raise error
+
+
+def _transcribe_groq(pcm: bytes, post=None) -> str:
     """Text for `pcm` via Groq Whisper. Tries each configured key; raises SttError if none work."""
     import httpx
 
@@ -164,6 +223,5 @@ def transcribe(pcm: bytes, post=None) -> str:
             continue
         if r.status_code != 200:
             raise SttError(f"The speech service failed ({r.status_code}).")
-        text = r.text.strip()
-        return "" if is_phantom(text) else text
+        return r.text.strip()
     raise SttError("All Groq keys were rejected or rate limited.")

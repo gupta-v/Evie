@@ -6,6 +6,7 @@ dependencies = [
     "anthropic>=2.8.0",
     "ddgs>=9.16.1",
     "edge-tts>=7.3.1",
+    "faster-whisper>=1.2.1",
     "google-genai>=3.3.0",
     "grpcio>=1.85.1",
     "kokoro-onnx>=0.6.1",
