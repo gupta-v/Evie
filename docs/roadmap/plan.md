@@ -32,7 +32,7 @@ Prereqs: `termusic`, `termusic-server`, `yt-dlp`, `ffmpeg` on PATH (scoop). Serv
 |---|---|---|---|
 | 2.1 | [x] Copy `player.proto`, generate stubs with a protoc matching protobuf 6.x | `proto/player.proto`, `src/evie/services/termusic_pb/` | `import` of generated modules works |
 | 2.2 | [x] gRPC client: connect, helpful error if server down, optional auto-start | `services/termusic.py` | `get_progress()` returns volume and status against a live server |
-| 2.3 | Music tools: play, pause (read status first), next, previous, volume up/down N times, now playing, queue list, clear, shuffle | `tools/music.py` | Typing each command makes termusic react |
+| 2.3 | [x] Music tools: play, pause (read status first), next, previous, volume up/down N times, now playing, queue list, clear, shuffle | `tools/music.py` | Typing each command makes termusic react |
 | 2.4 | Name to track: local library search, else `yt-dlp ytsearch1:`, then `AddToPlaylist` | `services/music_search.py` | "add Blinding Lights" lands in the queue |
 | 2.5 | Tests with a fake gRPC server | `tests/test_music.py` | `uv run pytest` green |
 
@@ -103,6 +103,7 @@ Done when: "any unread mail?" works.
 - One small test per non-trivial module.
 
 ## Status log
+- 2026-11-15: step 2.3 done: `tools/music.py` (12 tools; transport and volume marked fast), registry gained `optional` args, 17 tests green, Gemini accepts schemas and relays the server-down message. Real termusic-server not tested yet.
 - 2026-11-15: step 2.1 (proto stubs, protobuf 6.31 gencode) and 2.2 (`services/termusic.py` client + fake-server tests, 10 tests green) done. Not yet run against the real termusic-server.
 - 2026-11-15: foundation decisions added (daemon, wake word, tool contract, game safety). Step 1b added.
 - 2026-11-15: docs created. Step 0 verified. Step 1 done: `src/evie` package, Gemini talker verified live.

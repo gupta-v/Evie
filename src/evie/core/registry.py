@@ -18,8 +18,8 @@ class Meta:
 _TOOLS: dict[str, dict] = {}
 
 
-def tool(name: str, description: str, schema: dict, *, risk: str = "read", fast: bool = False):
-    """Register a native function. `schema` is the JSON-schema `properties` dict."""
+def tool(name: str, description: str, schema: dict, *, risk: str = "read", fast: bool = False, optional: tuple = ()):
+    """Register a native function. `schema` is the JSON-schema `properties` dict; `optional` lists keys not required."""
     if risk not in ("read", "write"):
         raise ValueError(f"risk must be 'read' or 'write', got {risk!r}")
 
@@ -30,7 +30,7 @@ def tool(name: str, description: str, schema: dict, *, risk: str = "read", fast:
             "spec": {
                 "name": name,
                 "description": description,
-                "input_schema": {"type": "object", "properties": schema, "required": list(schema)},
+                "input_schema": {"type": "object", "properties": schema, "required": [k for k in schema if k not in optional]},
             },
         }
         return fn
