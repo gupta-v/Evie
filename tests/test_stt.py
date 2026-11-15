@@ -4,10 +4,23 @@ from evie.utils import config
 from evie.services.voice import stt
 
 
-def test_end_of_speech_needs_speech_then_quiet():
-    assert not stt.end_of_speech([1, 1, 1, 1], 100, 3)          # never spoke
-    assert not stt.end_of_speech([500, 500, 1, 1], 100, 3)      # spoke, not quiet long enough
-    assert stt.end_of_speech([500, 500, 1, 1, 1], 100, 3)
+def feed(gate, levels):
+    return [gate.update(v) for v in levels]
+
+
+def test_gate_waits_for_speech_then_quiet():
+    g = stt.Gate(quiet_blocks=3)
+    assert not any(feed(g, [40, 40, 40, 40]))                 # never spoke
+    assert not any(feed(g, [5000, 5000, 40, 40]))             # spoke, not quiet long enough
+    assert g.update(40)                                       # third quiet block ends it
+
+
+def test_gate_follows_a_mic_that_settles_from_loud():
+    g = stt.Gate(quiet_blocks=3)
+    feed(g, [800, 700, 500, 300, 80, 50])                     # headset warm-up
+    assert g.threshold == 250                                 # floor, not 3 x 800
+    g.update(6000)
+    assert g.spoke
 
 
 class R:

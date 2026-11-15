@@ -17,7 +17,11 @@ def listen() -> str:
     except stt.SttError as e:
         print(f"[voice] {e}")
         return ""
-    print(f"You: {text}" if text else "[heard nothing]")
+    if text:
+        print(f"You: {text}")
+    else:
+        lv = stt.last_levels
+        print(f"[heard nothing: loudest {lv['loudest']:.0f}, needed {lv['needed']:.0f}. Set EVIE_MIC to pick another mic]")
     return text
 
 

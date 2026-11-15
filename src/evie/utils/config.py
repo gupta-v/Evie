@@ -16,6 +16,8 @@ TERMUSIC_AUTOSTART = os.getenv("TERMUSIC_AUTOSTART", "1") == "1"
 # Open the termusic TUI window whenever Evie uses music (the TUI also starts the server). Turn off for gaming.
 TERMUSIC_SHOW_UI = os.getenv("TERMUSIC_SHOW_UI", "1") == "1"
 GROQ_API_KEYS = [k for k in (os.getenv(n) for n in ("GROQ_API_KEY", "GROQ_API_KEY1", "GROQ_API_KEY2")) if k]  # rotated on rate limits
+_mic = os.getenv("EVIE_MIC") or None  # input device: index or name part; default is the system default
+MIC = int(_mic) if _mic and _mic.isdigit() else _mic
 SPEAK = os.getenv("EVIE_SPEAK", "0") == "1"  # read replies aloud
 VOICE = os.getenv("EVIE_VOICE") or "en-IN-NeerjaNeural"  # any Edge voice name
 DEBUG = os.getenv("EVIE_DEBUG", "0") == "1"

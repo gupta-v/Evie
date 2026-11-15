@@ -18,16 +18,35 @@ _URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 _MODEL = "whisper-large-v3-turbo"
 _COOLDOWN = 300  # seconds a rejected or rate-limited key is skipped
 _dead: dict[str, float] = {}
+last_levels = {"loudest": 0.0, "needed": 0.0}  # from the latest recording, to explain 'heard nothing'
 
 
 class SttError(Exception):
     """Message is safe to read aloud (or print)."""
 
 
-def end_of_speech(levels: list[float], thr: float, quiet_blocks: int) -> bool:
-    """True once speech was heard and the last `quiet_blocks` blocks are all below `thr`."""
-    spoke = any(v > thr for v in levels)
-    return spoke and len(levels) >= quiet_blocks and all(v <= thr for v in levels[-quiet_blocks:])
+class Gate:
+    """Decides when an utterance starts and ends from block loudness.
+
+    Speech level follows the quietest block seen so far (x3, never below 250), so a mic that opens loud
+    and settles over a second (Bluetooth headsets do) does not set a threshold speech cannot reach."""
+
+    def __init__(self, quiet_blocks: int):
+        self.quiet_blocks, self.floor = quiet_blocks, float("inf")
+        self.spoke, self.quiet = False, 0
+
+    @property
+    def threshold(self) -> float:
+        return max(250.0, 3 * self.floor)
+
+    def update(self, rms: float) -> bool:
+        """Feed one block; True when the utterance is over."""
+        self.floor = min(self.floor, rms)
+        if rms > self.threshold:
+            self.spoke, self.quiet = True, 0
+        elif self.spoke:
+            self.quiet += 1
+        return self.spoke and self.quiet >= self.quiet_blocks
 
 
 def record(max_seconds: float = 20, wait_seconds: float = 8, quiet_seconds: float = 1.0) -> bytes:
@@ -35,24 +54,21 @@ def record(max_seconds: float = 20, wait_seconds: float = 8, quiet_seconds: floa
     import numpy as np
     import sounddevice as sd
 
-    chunks, levels, thr = [], [], None
-    quiet_blocks = int(quiet_seconds * RATE / _BLOCK)
-    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK) as stream:
+    gate, chunks, peak = Gate(int(quiet_seconds * RATE / _BLOCK)), [], 0.0
+    with sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=_BLOCK, device=config.MIC) as stream:
         for i in range(int(max_seconds * RATE / _BLOCK)):
             block, _ = stream.read(_BLOCK)
             rms = float(np.sqrt(np.mean(block.astype("float32") ** 2)))
-            if i < 10:  # first 0.3 s: learn the room
-                levels.append(rms)
-                if i == 9:
-                    thr, levels = max(250.0, 2.5 * max(levels)), []
-                continue
-            chunks.append(block.tobytes())
-            levels.append(rms)
-            if end_of_speech(levels, thr, quiet_blocks):
+            peak = max(peak, rms)
+            done = gate.update(rms)
+            last_levels.update(loudest=peak, needed=gate.threshold)
+            if gate.spoke:
+                chunks.append(block.tobytes())
+            if done:
                 break
-            if not any(v > thr for v in levels) and i > wait_seconds * RATE / _BLOCK:
+            if not gate.spoke and i > wait_seconds * RATE / _BLOCK:
                 return b""
-    return b"".join(chunks) if any(v > thr for v in levels) else b""
+    return b"".join(chunks)
 
 
 def _wav(pcm: bytes) -> bytes:
