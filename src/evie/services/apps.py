@@ -50,9 +50,12 @@ def list_apps(run: Callable | None = None) -> list[App]:
     return _cache
 
 
+_FILLER = {"windows", "microsoft", "app", "the"}  # "Windows Terminal" is listed as just "Terminal"
+
+
 def find(query: str, apps: list[App] | None = None) -> list[App]:
     """Apps whose name contains every word of `query`, closest name first."""
-    q = [w for w in words(query) if len(w) > 1] or words(query)
+    q = [w for w in words(query) if len(w) > 1 and w not in _FILLER] or words(query)
     if not q:
         return []
     hits = []

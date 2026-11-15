@@ -100,3 +100,7 @@ def test_bare_domains_with_paths_get_https_but_junk_does_not(browser):
     for junk in ("https://host:notaport/x", "just words here", "localhost"):
         assert "isn't a web address" in registry.call("open_website", {"url": junk})
     assert browser == ["https://github.com/anthropics?tab=repos"]  # nothing more opened
+
+
+def test_windows_terminal_finds_the_app_listed_as_terminal():
+    assert [a.name for a in apps.find("Windows Terminal", [App("Terminal", "x"), App("Notepad", "y")])] == ["Terminal"]

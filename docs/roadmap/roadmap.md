@@ -19,6 +19,8 @@ Each step runs on its own. Tick when done.
 - [ ] **5. Two-speed brain.** Fast model talks. Heavy agent runs in background via `TaskManager` (JSON state, cancel). `notify()` to toast and ntfy. Done when: long task ends, phone buzzes.
 - [ ] **6. MCP.** Gmail and Calendar, read-only. Done when: "any unread mail?" works.
 
+**Idea, later (with step 5): "open Claude Code and ask it to plan X".** Today `open_app` can't, because Claude Code is a CLI, not a Start menu app. Wanted: a `run_claude_code(task, folder)` tool that opens Windows Terminal in a folder and starts `claude` with the user's words as its first prompt, so heavy work happens in a real session. Design notes: it is a write action (asks for a yes); pass argv only, never a shell string; `wt` treats `;` as a command separator, so strip `;` from the task; never use `--dangerously-skip-permissions`; ask or default the folder; same runner interface as the planned heavy runner (decisions: Claude Code/Codex behind one interface).
+
 ## Detailed plan
 
 Tasks, files and done criteria per step: [plan.md](plan.md). Current step: **2, termusic tools**.
