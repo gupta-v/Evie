@@ -1,10 +1,13 @@
 # Troubleshooting
 
-## "[heard nothing: loudest X, needed Y]"
-Evie got no speech above the level it needs. Run `uv run python scripts/mic_check.py` and speak.
-- If your voice never reaches "needed": wrong microphone or a very quiet one. Try another with `EVIE_MIC`.
+## Evie never reacts when I talk
+Voice mode waits for sound above a threshold. Run `uv run python scripts/mic_check.py` and speak: your voice should rise well past the "speech above" number.
+- If it never does: wrong or very quiet microphone. Try another with `EVIE_MIC`.
+- If the threshold is too high for your mic, set a fixed lower one: `EVIE_THRESHOLD` (for example `400`).
 - Bluetooth headsets switch to a low-quality call mode when the mic opens and take about a second to settle. Evie allows for that, but the built-in PC mic is more reliable.
-- Music playing through speakers is picked up as noise. Pausing music while you talk is planned, not built.
+
+## Evie reacts to music, TV or other people
+There is no wake word: anything above the threshold is recorded and sent to Groq for transcription. Raise `EVIE_THRESHOLD`, use a headset mic, or pause the music. Pausing music while you talk is planned, not built.
 
 ## Evie hears the wrong thing, such as "Thank you."
 Speech-to-text models invent words from near-silence. Speak after the "[listening...]" line and close to the mic.

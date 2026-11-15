@@ -37,7 +37,7 @@ Text mode (type, no mic needed):
 ```
 uv run evie
 ```
-Voice mode (press Enter, speak, Evie answers aloud):
+Voice mode (no key press: just talk and Evie answers aloud; it listens all the time):
 ```
 uv run evie --voice
 ```

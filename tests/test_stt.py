@@ -66,3 +66,19 @@ def test_a_limited_key_is_skipped_on_the_next_call(monkeypatch):
     used.clear()
     stt.transcribe(b"" + bytes(2), post=post)
     assert used == ["Bearer k2"]
+
+
+def test_phantom_phrases_from_near_silence_are_dropped():
+    assert stt.is_phantom("Thank you.") and stt.is_phantom(" you ")
+    assert not stt.is_phantom("thank you for the music")
+
+
+def test_fixed_threshold_overrides_the_learned_one(monkeypatch):
+    monkeypatch.setattr(config, "THRESHOLD", 900.0)
+    g = stt.Gate(quiet_blocks=2)
+    g.update(5)
+    assert g.threshold == 900.0
+    g.update(800)
+    assert not g.spoke          # below the fixed level
+    g.update(1000)
+    assert g.spoke and g.loud_blocks == 1

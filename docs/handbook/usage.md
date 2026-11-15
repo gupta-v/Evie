@@ -26,4 +26,4 @@ Talk or type naturally. Short fixed commands are handled instantly without the A
 - Tool arguments are never put into shell strings, and Evie never runs with permission checks disabled.
 
 ## Not built yet
-Wake word (it is push-to-talk: press Enter), pausing music while you talk, mail and calendar, background tasks and phone alerts, "open Claude Code and ask it to ...". See the roadmap in `docs/roadmap/`.
+Wake word (voice mode listens all the time and answers anything it hears; there is no wake word yet), pausing music while you talk, mail and calendar, background tasks and phone alerts, "open Claude Code and ask it to ...". See the roadmap in `docs/roadmap/`.
