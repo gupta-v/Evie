@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import numpy as np
 import sounddevice as sd
 
+from evie.services.voice import stt
 from evie.utils import config
 
 for i, d in enumerate(sd.query_devices()):
