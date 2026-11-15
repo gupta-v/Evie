@@ -9,6 +9,7 @@ from pydantic import Field
 from evie import config
 from evie.core.registry import tool
 from evie.services import library, tui_input, watcher
+from evie.services.text import clean_title, spoken_duration
 from evie.services.termusic import Termusic, TermusicError
 
 _client: Termusic | None = None
@@ -202,9 +203,9 @@ def _resolve(name: str):
     if len(strong) == 1:
         return strong[0], ""
     if strong:
-        return None, "Several songs match, ask the user which one:\n" + _numbered([h.title for h in strong])
+        return None, "Several songs match, ask the user which one:\n" + _numbered([clean_title(h.title) for h in strong])
     if hits:
-        return None, f"No exact match for '{name}'. Close ones, ask if any is right:\n" + _numbered([h.title for h in hits])
+        return None, f"No exact match for '{name}'. Close ones, ask if any is right:\n" + _numbered([clean_title(h.title) for h in hits])
     return None, f"No song matching '{name}' in the library. Tell the user and ask if they want you to search online."
 
 
@@ -220,7 +221,7 @@ def music_play_song(name: Annotated[str, Field(min_length=1)]) -> str:
         name: Song title, optionally with the artist.
     """
     song, msg = _resolve(name)
-    return f"{_queue_and_play(song.path)}: {song.title}" if song else msg
+    return f"{_queue_and_play(song.path)}: {clean_title(song.title)}" if song else msg
 
 
 @tool
@@ -240,9 +241,9 @@ def music_queue_song(name: Annotated[str, Field(min_length=1)]) -> str:
     c = _c()
     key = os.path.normcase(os.path.normpath(str(song.path)))
     if key in [os.path.normcase(os.path.normpath(q)) for q in c.queue()]:
-        return f"already in the queue: {song.title}"
+        return f"already in the queue: {clean_title(song.title)}"
     c.add(str(song.path))
-    return f"added to the queue: {song.title}"
+    return f"added to the queue: {clean_title(song.title)}"
 
 
 def _announce(msg: str) -> None:
@@ -251,7 +252,8 @@ def _announce(msg: str) -> None:
 
 def _on_downloaded(path: Path) -> None:
     try:
-        _announce(f"Downloaded {path.stem}. {_queue_and_play(path)}")
+        played = _queue_and_play(path)
+        _announce(f"Downloaded {clean_title(path.stem)}. " + ("Now playing it." if played.startswith("playing") else played))
     except TermusicError as e:
         _announce(str(e))
 
@@ -259,15 +261,32 @@ def _on_downloaded(path: Path) -> None:
 @tool
 @_speakable
 def music_search_online(query: Annotated[str, Field(min_length=1)]) -> str:
-    """Open termusic's own YouTube search for a song the library does not have, only after the user
-    agrees to search. The user picks and downloads the result in the termusic window; Evie then adds
-    the new song to the queue and plays it by itself. If this reports an error, say what it said and
-    stop; do not try another way to download.
+    """Search YouTube with termusic's own search for a song the library does not have, only after the
+    user agrees to search. Returns numbered results: read the first few aloud (number, title, length)
+    and ask which one to add, then call music_pick_result with that number. If this reports an error,
+    say what it said and stop; do not try another way to download.
 
     Args:
         query: Song title and artist to search for.
     """
     _c().open_ui()
-    tui_input.youtube_search(query)
-    watcher.watch_new_song(_on_downloaded)
-    return f"Opened termusic's YouTube search for {query}. The user picks a result there; it will play once downloaded."
+    results = tui_input.search(query)
+    return "\n".join(f"{r.number}. {clean_title(r.title)} ({spoken_duration(r.duration)})" for r in results)
+
+
+@tool
+@_speakable
+def music_pick_result(number: Annotated[int, Field(ge=1)]) -> str:
+    """Choose one of the numbered results from music_search_online. termusic downloads it, and Evie
+    adds it to the queue and plays it once it has arrived.
+
+    Args:
+        number: The result number the user chose.
+    """
+    watcher.watch_new_song(_on_downloaded)  # snapshot the folder before the download starts
+    try:
+        chosen = tui_input.pick(number)
+    except TermusicError:
+        watcher.cancel()
+        raise
+    return f"Downloading {clean_title(chosen.title)}. It will play when it is ready."

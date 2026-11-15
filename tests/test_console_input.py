@@ -21,3 +21,12 @@ def test_order_is_preserved_and_multichar_keys_rejected():
     assert [e[3] for e in key_records(["a", "b"]) if e[0]] == ["a", "b"]
     with pytest.raises(ValueError):
         key_records(["ab"])
+
+
+def test_arrow_and_escape_keys():
+    from evie.services.console_input import DOWN, ESC, UP
+
+    down, up, esc = (key_records([k])[0] for k in (DOWN, UP, ESC))
+    assert (down[1], up[1], esc[1]) == (0x28, 0x26, 0x1B)
+    assert down[4] & 0x100 and up[4] & 0x100  # enhanced-key flag, like a real arrow key
+    assert not esc[4]

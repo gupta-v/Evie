@@ -1,0 +1,18 @@
+╭ Library ─────────────────────────╮╭─ Playlist ──┤ Total 7 tracks | 23:43 | Mode: ? ├────────╮╭ Cover ───────────────╮
+│▶ ▼ Music                         ││    Duratio  Title           Artist         Album         ││█████████             │
+│      (When You Gonna) Give It Up ││    [03:25]  Rakhlo Tum Chu  Arpit Bala     Arpit Bala    ││    █                 │
+│      52 Bars [6y9_c5Qavhs].opus  ││    [03:13]  I REALLY DO (M  Karan Aujla    Karan Aujla   ││    █                 │
+│      1985 - Bo Burnham.flac      ││    [03:07]  ANTIDOTE        Karan Aujla    Karan Aujla   ││    █       █     █   │
+│      Aadat Se Majb╭─── Page 1 ───┤ Tab/Shift+Tab switch pages ─────────────────────────────────╮   █       █  █  █   │
+│      Aadat [tjsckg│ Duration          Name                                                     │   █       █ █ █ █   │
+│      Aai Paapi - N│▶[04:03]           KR$NA ft. Seedhe Maut - Hola Amigo | Official Music Video│   █        █   █    │
+│      Aaj Ke Baad (│ [04:04]           Hola Amigo - KR$NA, Seedhe Maut | Lyrics | Lyrical Resort│   █                 │
+│      Aao Milo Chal│ [04:04]           KR$NA ft. Seedhe Maut - Hola Amigo | Official Music Video│─────────────────────╯
+│      Aaoge Jab Tum│ [03:47]           Hola Amigo (8D) || KR$NA, SEEDHE MAUT || DHH 8D          │Details ─────────────╮
+│      Aasa Kooda - │ [03:55]           Seedhe Maut x Kr$na - Hola Amigo || Legacy Performance   │ Guess | Official    │
+│      Aashiq Tera -│                                                                            │usic Video           │
+│      Abhi Mujh Mei│                                                                            │lbum: KRSNA          │
+│      Adan y Eva [e│                                                                            │rtist: KRSNA         │
+│      Addicted to Y│                                                                            │                     │
+╰──────────────────────────────────╯╰──────────────────────────────────────────────────────────╯╰──────────────────────╯
+ Help: <control+h> Config: <shift+C> Library: <1> Database: <2> Podcasts: <3> Version: mpv-windows-deps-v1-5-gf6c24514-d

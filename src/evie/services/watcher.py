@@ -13,6 +13,11 @@ from evie.services import library
 _cancel = threading.Event()
 
 
+def cancel() -> None:
+    """Stop the current watch, if any."""
+    _cancel.set()
+
+
 def watch_new_song(
     on_found: Callable[[Path], None], root: Path | None = None, timeout: float = 300.0, interval: float = 2.0,
     scan: Callable[[], list[Path]] | None = None, sleep=time.sleep, clock=time.monotonic,

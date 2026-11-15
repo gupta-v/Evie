@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 import evie.tools  # noqa: F401
@@ -86,20 +88,54 @@ def test_play_song_with_several_matches_asks_which(lib, wired):
 
 # --- online search is termusic's own 's' feature, typed into its window ---
 
+SCREEN = (Path(__file__).parent / "fixtures" / "termusic_search_screen.txt").read_text(encoding="utf-8").splitlines()
+
+
+def test_parser_reads_the_real_termusic_search_popup():
+    results, selected = tui_input.parse_results(SCREEN)
+    assert [(r.number, r.duration) for r in results] == [(1, "04:03"), (2, "04:04"), (3, "04:04"), (4, "03:47"), (5, "03:55")]
+    assert results[0].title == "KR$NA ft. Seedhe Maut - Hola Amigo | Official Music Video"
+    assert results[3].title.startswith("Hola Amigo (8D)")
+    assert selected == 0  # the first row carries the marker
+
+
+def test_parser_ignores_the_playlist_pane_and_a_closed_popup():
+    no_popup = [line for line in SCREEN if "switch pages" not in line]
+    assert tui_input.parse_results(no_popup) == ([], 0)  # playlist rows have [mm:ss] too
+    assert tui_input.parse_results(["nothing here"]) == ([], 0)
+
+
+def test_parser_finds_a_moved_selection():
+    moved = [line.replace("│▶[04:03]", "│ [04:03]").replace("│ [04:04]           Hola", "│▶[04:04]           Hola") for line in SCREEN]
+    assert tui_input.parse_results(moved)[1] == 1
+
+
+class FakeTui:
+    """Stands in for the TUI console: shows SCREEN once a search was typed; records keys sent."""
+
+    def __init__(self, monkeypatch, screen=None):
+        self.sent, self.screen, self.open = [], screen or SCREEN, False
+        monkeypatch.setattr(tui_input, "tui_pids", lambda: [111, 222])
+        monkeypatch.setattr(tui_input.ci, "send_keys", self.send)
+        monkeypatch.setattr(tui_input.ci, "read_screen", lambda pid: self.screen if self.open else ["no popup"])
+        monkeypatch.setattr(tui_input.time, "sleep", lambda s: None)
+
+    def send(self, pid, keys, pause_after_first=0):
+        self.sent.append((pid, keys))
+        if keys[0] == "s":
+            self.open = True
+
+
 @pytest.fixture
-def keys(monkeypatch):
-    """No real keys are ever sent: records what would be typed and which process gets it."""
-    sent = []
-    monkeypatch.setattr(tui_input, "tui_pids", lambda: [111, 222])
-    monkeypatch.setattr(tui_input.console_input, "send_keys", lambda pid, k, pause_after_first=0: sent.append((pid, k)))
-    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: sent.append(("watching", cb)))
-    return sent
+def tui(monkeypatch):
+    return FakeTui(monkeypatch)
 
 
-def test_search_online_types_into_newest_tui_in_background_and_starts_watching(wired, keys):
+def test_search_online_lists_numbered_results_from_termusics_own_box(wired, tui):
     out = registry.call("music_search_online", {"query": "hola amigo"})
-    assert keys[0] == (222, ["s", *"hola amigo", "<enter>"])  # no window focus involved
-    assert keys[1][0] == "watching" and "Opened termusic's YouTube search" in out
+    assert tui.sent[0] == (222, ["s", *"hola amigo", "<enter>"])  # newest TUI, background keys
+    lines = out.splitlines()
+    assert len(lines) == 5 and lines[0] == "1. KR$NA ft. Seedhe Maut - Hola Amigo (4:03)"  # cleaned for speech
 
 
 def test_search_online_reports_no_tui(wired, monkeypatch):
@@ -107,15 +143,43 @@ def test_search_online_reports_no_tui(wired, monkeypatch):
     assert "can't find the termusic window" in registry.call("music_search_online", {"query": "x"})
 
 
-def test_search_online_reports_typing_failure_without_starting_a_watch(wired, monkeypatch):
-    def boom(pid, k, pause_after_first=0):
-        raise RuntimeError("cannot attach")
+def test_search_online_gives_up_if_termusic_shows_nothing(wired, monkeypatch):
+    t = FakeTui(monkeypatch, screen=["no popup"])
+    ticks = iter(range(0, 1000, 5))
+    monkeypatch.setattr(tui_input.time, "monotonic", lambda: next(ticks))
+    out = registry.call("music_search_online", {"query": "zzzz"})
+    assert "didn't show any results" in out and t.sent  # it did type
 
-    monkeypatch.setattr(tui_input, "tui_pids", lambda: [5])
-    monkeypatch.setattr(tui_input.console_input, "send_keys", boom)
-    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: pytest.fail("must not watch"))
-    out = registry.call("music_search_online", {"query": "x"})
-    assert "couldn't type into termusic" in out and "cannot attach" in out
+
+def test_pick_presses_down_to_the_chosen_row_then_enter_and_watches(wired, tui, monkeypatch):
+    watching = []
+    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: watching.append(cb))
+    registry.call("music_search_online", {"query": "hola amigo"})
+    tui.sent.clear()
+    out = registry.call("music_pick_result", {"number": 3})
+    assert tui.sent == [(222, ["<down>", "<down>", "<enter>"])]
+    assert out.startswith("Downloading KR$NA ft. Seedhe Maut - Hola Amigo. It will play")
+    assert watching == [music._on_downloaded]  # watch started before the download
+
+
+def test_pick_first_result_is_just_enter(wired, tui, monkeypatch):
+    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: None)
+    registry.call("music_search_online", {"query": "x"})
+    tui.sent.clear()
+    registry.call("music_pick_result", {"number": 1})
+    assert tui.sent == [(222, ["<enter>"])]
+
+
+def test_pick_validates_and_cancels_the_watch_on_failure(wired, tui, monkeypatch):
+    calls = []
+    monkeypatch.setattr(music.watcher, "watch_new_song", lambda cb: calls.append("watch"))
+    monkeypatch.setattr(music.watcher, "cancel", lambda: calls.append("cancel"))
+    registry.call("music_search_online", {"query": "x"})
+    tui.sent.clear()
+    assert "only 5 results" in registry.call("music_pick_result", {"number": 9})
+    assert calls == ["watch", "cancel"] and tui.sent == []  # nothing pressed
+    tui.open = False  # popup closed
+    assert "aren't open any more" in registry.call("music_pick_result", {"number": 1})
 
 
 def test_downloaded_song_is_queued_and_played(lib, wired, monkeypatch):
@@ -125,7 +189,7 @@ def test_downloaded_song_is_queued_and_played(lib, wired, monkeypatch):
     song.write_bytes(b"x")
     music._on_downloaded(song)
     assert len(wired.tracks) == 1 and "PlaySpecific:0" in wired.calls
-    assert said == ["Downloaded Hola Amigo. playing"]
+    assert said == ["Downloaded Hola Amigo. Now playing it."]
 
 
 # --- approval gate: any write tool needs the user's yes ---

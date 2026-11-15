@@ -10,8 +10,9 @@ import subprocess
 import sys
 import time
 
-KEY_EVENT, SHIFT_PRESSED = 1, 0x10
-ENTER = "<enter>"
+KEY_EVENT, SHIFT_PRESSED, ENHANCED = 1, 0x10, 0x100  # arrows are "enhanced" keys on a real keyboard
+ENTER, ESC, DOWN, UP = "<enter>", "<esc>", "<down>", "<up>"
+_NAMED = {ENTER: (0x0D, "\r", 0), ESC: (0x1B, "\x1b", 0), DOWN: (0x28, "\0", ENHANCED), UP: (0x26, "\0", ENHANCED)}
 
 
 def key_records(keys: list[str]) -> list[tuple[bool, int, int, str, int]]:
@@ -22,8 +23,8 @@ def key_records(keys: list[str]) -> list[tuple[bool, int, int, str, int]]:
     u32 = ctypes.windll.user32
     out = []
     for k in keys:
-        if k == ENTER:
-            vk, ch, ctrl = 0x0D, "\r", 0
+        if k in _NAMED:
+            vk, ch, ctrl = _NAMED[k]
         else:
             if len(k) != 1:
                 raise ValueError(f"not a single key: {k!r}")
@@ -67,12 +68,53 @@ def _write(pid: int, keys: list[str]) -> None:
         raise OSError("writing to the console input failed")
 
 
+def _read(pid: int) -> list[str]:
+    import ctypes
+    from ctypes import wintypes as w
+
+    class Coord(ctypes.Structure):
+        _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+    class Rect(ctypes.Structure):
+        _fields_ = [("Left", ctypes.c_short), ("Top", ctypes.c_short), ("Right", ctypes.c_short), ("Bottom", ctypes.c_short)]
+
+    class Info(ctypes.Structure):
+        _fields_ = [("size", Coord), ("cursor", Coord), ("attr", w.WORD), ("window", Rect), ("maxsize", Coord)]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.FreeConsole()
+    if not k32.AttachConsole(pid):
+        raise OSError(f"cannot attach to console of pid {pid} (error {ctypes.get_last_error()})")
+    k32.CreateFileW.restype = w.HANDLE
+    h = k32.CreateFileW("CONOUT$", 0xC0000000, 3, None, 3, 0, None)
+    info = Info()
+    if not k32.GetConsoleScreenBufferInfo(h, ctypes.byref(info)):
+        raise OSError("cannot read the console screen")
+    win = info.window
+    width, lines = win.Right - win.Left + 1, []
+    for y in range(win.Top, win.Bottom + 1):
+        buf, n = ctypes.create_unicode_buffer(width), w.DWORD()
+        k32.ReadConsoleOutputCharacterW(h, buf, width, Coord(win.Left, y), ctypes.byref(n))
+        lines.append(buf.value.rstrip())
+    return lines
+
+
+def read_screen(pid: int) -> list[str]:
+    """The visible text of process `pid`'s console, one string per row."""
+    r = subprocess.run(
+        [sys.executable, "-m", "evie.services.console_input", "read", str(pid)], capture_output=True, text=True, timeout=15
+    )
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "reading the screen failed")
+    return json.loads(r.stdout)
+
+
 def send_keys(pid: int, keys: list[str], pause_after_first: float = 0.0) -> None:
     """Type `keys` into process `pid`'s console. Raises RuntimeError if it could not be done."""
     batches = [keys[:1], keys[1:]] if pause_after_first and len(keys) > 1 else [keys]
     for i, batch in enumerate(batches):
         r = subprocess.run(
-            [sys.executable, "-m", "evie.services.console_input", str(pid)],
+            [sys.executable, "-m", "evie.services.console_input", "keys", str(pid)],
             input=json.dumps(batch), capture_output=True, text=True, timeout=15,
         )
         if r.returncode != 0:
@@ -82,4 +124,7 @@ def send_keys(pid: int, keys: list[str], pause_after_first: float = 0.0) -> None
 
 
 if __name__ == "__main__":
-    _write(int(sys.argv[1]), json.load(sys.stdin))
+    if sys.argv[1] == "read":
+        print(json.dumps(_read(int(sys.argv[2]))))
+    else:
+        _write(int(sys.argv[2]), json.load(sys.stdin))
