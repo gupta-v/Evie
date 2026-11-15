@@ -15,6 +15,7 @@ class FakePlayer(rpc.MusicPlayerServicer):
         self.status, self.volume, self.index = 0, 50, 0
         self.tracks: list[pb.TrackId] = []
         self.calls: list[str] = []
+        self.ignore_adds = False  # real termusic silently drops tracks it cannot use
 
     def GetProgress(self, req, ctx):
         return pb.GetProgressResponse(status=self.status, volume=self.volume, current_track_index=self.index)
@@ -43,6 +44,8 @@ class FakePlayer(rpc.MusicPlayerServicer):
         )
 
     def AddToPlaylist(self, req, ctx):
+        if self.ignore_adds:
+            return pb.Empty()
         self.tracks[req.at_index:req.at_index] = list(req.tracks)
         return pb.Empty()
 

@@ -27,7 +27,11 @@ from pydantic import ValidationError
 
 from evie import config
 
-NEEDS_APPROVAL = "needs approval: this action changes something. Ask the user to confirm."
+NEEDS_APPROVAL = (
+    "needs approval: this action changes something. Tell the user exactly what you are about to do "
+    "and ask them to confirm. Do not retry until they answer."
+)
+_blocked: tuple[str, dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +69,13 @@ def tool(fn: Callable | None = None, *, name: str | None = None, risk: str = "re
     return register(fn) if fn is not None else register
 
 
+def take_blocked() -> tuple[str, dict] | None:
+    """The write call that was just blocked awaiting approval, if any (cleared on read)."""
+    global _blocked
+    b, _blocked = _blocked, None
+    return b
+
+
 def specs() -> list[dict]:
     return [t["spec"] for t in _TOOLS.values()]
 
@@ -84,6 +95,8 @@ def _call(name: str, args: dict, approved: bool) -> str:
     if name not in _TOOLS:
         return f"error: unknown tool {name}"
     if _TOOLS[name]["meta"].risk == "write" and not approved:
+        global _blocked
+        _blocked = (name, args)
         return NEEDS_APPROVAL
     try:
         return str(_TOOLS[name]["tool"].invoke(args))

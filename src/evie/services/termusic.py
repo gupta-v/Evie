@@ -250,10 +250,13 @@ class Termusic:
 
     # --- queue ---
     def add(self, source: str) -> None:
-        """Append a file path or URL to the end of the queue."""
+        """Append a file path or URL. Termusic silently ignores tracks it cannot use, so check
+        that the queue really grew."""
         n = len(self._call("GetPlaylist").tracks)
         kind = "url" if source.startswith(("http://", "https://")) else "path"
         self._call("AddToPlaylist", pb.PlaylistTracksToAdd(at_index=n, tracks=[pb.TrackId(**{kind: source})]))
+        if len(self._call("GetPlaylist").tracks) <= n:
+            raise TermusicError("The music player didn't accept that track. It may not be a valid file.")
 
     def clear(self) -> None:
         self._call("RemoveFromPlaylist", pb.PlaylistTracksToRemove(clear=pb.PlaylistTracksToRemoveClear()))

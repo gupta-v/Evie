@@ -33,7 +33,7 @@ Prereqs: `termusic`, `termusic-server`, `yt-dlp`, `ffmpeg` on PATH (scoop). Serv
 | 2.1 | [x] Copy `player.proto`, generate stubs with a protoc matching protobuf 6.x | `proto/player.proto`, `src/evie/services/termusic_pb/` | `import` of generated modules works |
 | 2.2 | [x] gRPC client: connect, helpful error if server down, optional auto-start | `services/termusic.py` | `get_progress()` returns volume and status against a live server |
 | 2.3 | [x] Music tools: play, pause (read status first), next, previous, volume up/down N times, now playing, queue list, clear, shuffle | `tools/music.py` | Typing each command makes termusic react |
-| 2.4 | Name to track: local library search, else `yt-dlp ytsearch1:`, then `AddToPlaylist` | `services/music_search.py` | "add Blinding Lights" lands in the queue |
+| 2.4 | [x] Name to track: local library search, else `yt-dlp ytsearch1:`, then `AddToPlaylist` | `services/music_search.py` | "add Blinding Lights" lands in the queue |
 | 2.5 | Tests with a fake gRPC server | `tests/test_music.py` | `uv run pytest` green |
 
 Regenerate stubs (protobuf must stay 6.x to match Pipecat's pin, so use grpcio-tools 1.74-1.78, not latest):
@@ -103,6 +103,7 @@ Done when: "any unread mail?" works.
 - One small test per non-trivial module.
 
 ## Status log
+- 2026-11-15: step 2.4 done. Songs by name: `services/library.py` (whole-word match on file names in `EVIE_MUSIC_DIR`, default ~/Music; one-letter words ignored), `services/online.py` (yt-dlp search/download, argv only, YouTube hosts only), tools `music_play_song`, `music_queue_song`, `music_search_online`, `music_download` (risk=write). Flow: library miss -> say so -> offer online search -> options -> user picks -> approval (Agent remembers the blocked write, user's yes runs it) -> download to library, queue, play. Bug found and fixed: termusic silently ignores adds it cannot use, so `Termusic.add` now verifies the queue grew and `music_add` rejects non-paths. 56 tests. Download not run live yet.
 - 2026-11-15: any music command now opens the termusic TUI window first (`TERMUSIC_SHOW_UI`, default on; the TUI starts the server; headless server only if off, for gaming). `play` starts at track 1 when Evie just opened the player or it was stopped (termusic otherwise resumes the saved track); new `music_play_track(n)`; `EVIE_DEBUG=1` prints tool calls. 37 tests. Verified: TUI visible, track 1 plays. Known: after a force-kill termusic may not remember the last track, so the saved-position restart branch is covered by unit tests, not seen live.
 - 2026-11-15: tools rebuilt on LangChain `@tool` + pydantic validation (30 tests). Fixed: headless server launch showed a blank console (DETACHED_PROCESS + scoop shim); now hidden console. `music_start` now opens the termusic TUI (which starts the server) and does not auto-play.
 - 2026-11-15: verified live against real termusic: "start terminal music" auto-starts the server and plays, "what is playing" works, "stop termusic" quits gracefully then force-kills termusic* (native equivalent of the PowerShell `termusic-kill-server` profile function). `music_start` and `music_stop_player` tools added, `TERMUSIC_AUTOSTART` config, 23 tests. Known gap: status gives track number, not title (protocol has no title).

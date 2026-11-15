@@ -35,10 +35,12 @@ def test_set_volume_and_status(player):
     assert registry.call("music_status", {}).startswith("stopped, volume 30")
 
 
-def test_add_then_play_then_queue(player):
-    assert "added" in registry.call("music_add", {"source": "C:/m/a.mp3"})
+def test_add_then_play_then_queue(player, tmp_path):
+    f = tmp_path / "a.mp3"
+    f.write_bytes(b"x")
+    assert "added" in registry.call("music_add", {"source": str(f)})
     assert registry.call("music_play", {}) == "playing"
-    assert registry.call("music_queue", {}) == "1. C:/m/a.mp3"
+    assert registry.call("music_queue", {}) == f"1. {f}"
 
 
 def test_next_calls_server(player):

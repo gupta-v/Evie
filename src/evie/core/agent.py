@@ -1,8 +1,13 @@
 """Talker: picks a provider from config, owns the 'stuck' fallback. Heavy work goes to tasks later."""
-from evie import config
+import re
+
 import evie.tools  # noqa: F401  (registers tools)
+from evie import config
+from evie.core import registry
 
 STUCK = "I got stuck on that one."
+YES = re.compile(r"^\W*(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|confirm|haan)\b", re.I)
+NO = re.compile(r"^\W*(no|nope|nah|cancel|don't|do not)\b", re.I)
 
 
 class Agent:
@@ -14,6 +19,18 @@ class Agent:
         else:
             raise ValueError(f"unknown EVIE_PROVIDER: {config.PROVIDER}")
         self.provider = P(config.MODEL)
+        self.pending: tuple[str, dict] | None = None  # a write call waiting for the user's yes
 
     def respond(self, text: str) -> str:
-        return self.provider.respond(text) or STUCK
+        """A blocked write tool is remembered; the user's next 'yes' runs it with approval."""
+        if self.pending:
+            name, args = self.pending
+            self.pending = None
+            if YES.match(text):
+                out = registry.call(name, args, approved=True)
+                text = f"The user approved. Result of {name}: {out}. Tell them briefly."
+            elif NO.match(text):
+                text = "The user declined. Acknowledge briefly."
+        reply = self.provider.respond(text) or STUCK
+        self.pending = registry.take_blocked()
+        return reply
