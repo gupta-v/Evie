@@ -10,8 +10,9 @@ Windows 10/11 only. About 10 minutes plus the voice download (about 120 MB).
 
 ## 2. Get the code and dependencies
 ```
-git clone <your repo url> Evie
+git clone https://github.com/gupta-v/Evie.git
 cd Evie
+git checkout dev   # until the dev branch is merged into main
 uv sync
 ```
 Close any running Evie before you run `uv sync` again later: Windows will not replace `evie.exe` while it runs.

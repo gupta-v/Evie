@@ -1,15 +1,18 @@
 # Flow
 
-## Voice turn
+## Voice turn (as built)
 ```
-push-to-talk / wake word
-  -> mic -> VAD (Silero) -> STT
-  -> fast router (local regex)
-       match  -> run tool, canned reply -> TTS
-       no     -> talker LLM (fast model, tools)
-                   quick answer -> TTS
-                   heavy task   -> spawn background task, say "on it" -> TTS
-  -> music ducked while listening and speaking
+mic, always open (sounddevice callback -> queue)
+  -> Gate: loudness above threshold starts an utterance, ~0.7 s of quiet ends it ("[listening done]")
+  -> STT: faster-whisper on this PC (Groq if it fails)               "[speech-to-text 0.6s]"
+  -> print "You: ..." (flushed), then at once:
+  -> fast router (local regex): match -> run the tool, reply with its text, no LLM
+     no match -> Agent.stream -> Gemini (streaming; tools run between turns)   "[brain 1.0s]"
+  -> pieces of the reply are printed AND fed to tts.Speaker as they arrive:
+     Kokoro makes each finished sentence in parallel, plays them in order
+  -> back to listening (audio heard while speaking is discarded)
+Planned: duck or pause termusic while listening and speaking; wake word or hotkey; gaming mode;
+heavy work handed to a background task ("on it") instead of answered inline.
 ```
 
 ## Background task

@@ -12,7 +12,7 @@ Conventions: package `src/evie`, run `uv run evie`, test `uv run pytest`. A new 
 - [ ] Still open: PyAudio / local audio on this PC, live latency, Fish free-tier limits, Hermes yes/no.
 
 ## Step 1: Text brain (done)
-- [x] `config.py`, `core/registry.py`, `core/agent.py`, `providers/{gemini,anthropic}.py`, `tools/basic.py`, `__main__.py`.
+- [x] `utils/config.py`, `core/registry.py`, `core/agent.py`, `core/main.py`, `providers/{gemini,anthropic}.py`, `tools/info/basic.py`. (Files were later regrouped into domain folders; see CLAUDE.md for the layout.)
 - [x] Verified live: Gemini `gemini-3.5-flash-lite`, "what time is it" calls `get_time`.
 - [ ] Add a test that fakes the provider and checks the tool loop (no network).
 
@@ -46,14 +46,16 @@ Rules: volume step is 5 (server `VOLUME_STEP`). No absolute volume: read `GetPro
 ## Step 3: Fast router
 | # | Task | Files |
 |---|---|---|
-| 3.1 | Normalize text, regex map for pause, play, next, previous, volume up/down (+N), mute, stop | `core/router.py` |
-| 3.2 | Router runs before the LLM. Match runs the tool and returns a canned reply. No match goes to the agent | `core/agent.py` |
+| 3.1 | [x] Normalize text, regex map for pause, play, next, previous, volume up/down, set volume, shuffle. (Missing: "volume up N", mute) | `core/router.py` |
+| 3.2 | [x] Router runs before the LLM. Match runs the tool and returns the tool's own text. No match goes to the agent | `core/agent.py` |
 | 3.3 | Record routed turns in history so follow-ups keep context | `core/agent.py` |
-| 3.4 | Tests: phrases to actions, near-misses fall through | `tests/test_router.py` |
+| 3.4 | [x] Tests: phrases to actions, near-misses fall through | `tests/test_router.py` |
 
 Done when: "next" returns in under 100 ms with no LLM call.
 
 ## Step 4: Voice (Python gateway, then Rust ear)
+**Status 2026-11-16:** the Python side is built as one in-process loop, no WebSocket and no Pipecat yet: `services/voice/stt.py` (always-open mic via sounddevice callback, `Gate` loudness detector with rolling-median threshold, 0.4 s pre-roll, blip/steady-noise filters, on-device faster-whisper `base` with Groq backup, library names as Whisper prompt), `services/voice/tts.py` (Kokoro int8 local, Edge fallback, `Speaker` streams sentence by sentence), `core/main.py` (loop and stage timers), `providers/gemini.py` (streaming, model fallback chain). Open: 4.4 duck music, 4.5-4.6 Rust ear and wake word, 4.7 gaming mode, protocol doc (only needed if the Rust ear is built), STT accuracy decision from `scripts/stt_compare.py`.
+
 Design: a small always-on Rust "ear" detects the wake word and records the utterance, then sends audio to the Python brain over a local WebSocket (127.0.0.1). Python does STT, router, agent, TTS and plays the reply. See decisions 8 and 13.
 
 **Protocol (define first, in `docs/architecture/protocol.md`):**
@@ -103,6 +105,12 @@ Done when: "any unread mail?" works.
 - One small test per non-trivial module.
 
 ## Status log
+- 2026-11-16: reply streaming. `agent.stream()` and `GeminiProvider.stream()` yield text as it is written; `tts.Speaker` speaks each finished sentence (or the first clause of a long one) while the model continues, and `core/main.py` prints and speaks together. First sound ~1.8 s on a long answer, first text ~0.8 s. Stage timers `[speech-to-text]` and `[brain]` print in voice mode.
+- 2026-11-16: Gemini free tier is ~5 requests/min per model; the SDK retried silently for 9-16 s then crashed. Now `attempts=1`, `EVIE_MODEL` is a comma fallback chain (429 sidelines a model for the time Google gives), and a failed turn is spoken as "My brain is busy" and removed from history.
+- 2026-11-16: speech in. On-device faster-whisper (`base`, multilingual, `EVIE_LANG=auto` limited to `EVIE_LANGS=en,hi`) first, Groq backup. Measured on a 1.9 s clip: base 0.3-0.7 s, small ~1-2 s (and writes Hindi in Devanagari), Groq ~0.4 s. Library artist/song names go to Whisper as a prompt. `scripts/stt_compare.py` compares engines on the user's own voice.
+- 2026-11-16: hands-free listening, no Enter. `Gate`: 5-block average, threshold = 2.5x rolling median of the room (floor 250, or `EVIE_THRESHOLD`), room remembered across turns by one persistent mic stream, 0.4 s pre-roll, clicks and flat noise ignored, Whisper phantom phrases dropped, stalled or silent mic detected and reopened. Ctrl+C works (callback + queue, not a blocking read).
+- 2026-11-16: TTS. Local Kokoro (`kokoro-onnx` int8, 8 threads, `af_sarah`) first, Edge fallback, order from `EVIE_TTS`. Per-piece pauses restored (0.25 s after a sentence, 0.1 s after a comma); `EVIE_TTS_SPEED`.
+- 2026-11-16: repo regrouped into domain folders (tools/ and services/ by music, web, system, info, voice; core/ holds agent, router, registry, prompts, main; utils/ holds config and text). `scripts/` added. Handbook in `docs/handbook/`. Pushed `dev`; PR #1 to `main`.
 - 2026-11-15: `wikipedia(topic)` tool via LangChain WikipediaAPIWrapper; shared `text.shorten` (sentence-aware); REPL output forced to UTF-8 (a non-ASCII answer crashed the Windows cp1252 console). Verified live: facts -> Wikipedia, recent events -> web_search. 125 tests. Still no TAVILY_API_KEY: keyless search failed intermittently again.
 - 2026-11-15: `get_weather(location=Mumbai)` in tools/basic.py, services/weather.py: Open-Meteo (free, no key), place lookup cached per session, one spoken-style line. Default city from `EVIE_LOCATION` (tool description still says Mumbai). Verified live (Mumbai, Pune, London); ~3-4 s per answered turn, mostly the two model calls. 119 tests.
 - 2026-11-15: `web_search` (services/websearch.py, tools/web.py): answers instead of opening a browser. Tavily when `TAVILY_API_KEY` is set (not yet verified live), keyless ddgs fallback with one retry (verified: ~5 s for a full answered turn, flaky). Ads filtered, one result per site, short snippets. 113 tests. Principle recorded: design for voice, do not copy conventions.

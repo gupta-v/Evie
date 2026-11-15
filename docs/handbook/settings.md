@@ -12,6 +12,7 @@ Set in `.env` (kept across runs) or for one run in PowerShell: `$env:NAME="value
 | `EVIE_TTS_SPEED` | `1.0` | How fast the local voice speaks: `0.9` slower, `1.2` faster |
 | `EVIE_VOICE` | `en-IN-NeerjaNeural` | The online Edge voice (used only as fallback) |
 | `EVIE_LANG` | `auto` | Language you speak. `auto` handles Hinglish (Hindi and English mixed). `en` or `hi` forces one, which cuts noise guesses but breaks mixing |
+| `EVIE_LANGS` | `en,hi` | With `EVIE_LANG=auto`: speech detected as any other language is treated as noise |
 | `EVIE_STT_MODEL` | `base` | On-device Whisper model. `base` = Hindi and English, about 0.7 s. `base.en` = English only. `small` = more accurate but about 2 s and writes Hindi in Devanagari |
 | `EVIE_STT` | `local,groq` | Speech-to-text order: `local` = on this PC, `groq` = cloud backup |
 | `EVIE_MIC` | system default | Microphone: a device number or part of its name (list: `scripts/mic_check.py`) |

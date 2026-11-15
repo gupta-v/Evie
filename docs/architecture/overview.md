@@ -1,5 +1,7 @@
 # Evie: Architecture Notes (draft v0)
 
+> These notes are the original design and research. For what is actually built and the current layout, see `.claude/CLAUDE.md` and `docs/decisions/decisions.md` (decisions 19-24). The Rust ear, Go gateway, React UI, Pipecat and MCP layers described below are later phases or were replaced.
+
 ## Do we need MCP?
 
 No. MCP is a plugin standard for tools, not a requirement. Plain Python functions with a JSON schema work fine for an agent.

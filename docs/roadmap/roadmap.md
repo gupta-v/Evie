@@ -4,7 +4,7 @@
 
 Say "Evie, add Blinding Lights to the queue, then volume up" and it happens in about 1-2 s. Then "any unread mail?" gets an answer. A finished background task buzzes the phone.
 
-**In MVP:** Python, push-to-talk, termusic tools, fast router, Pipecat voice, two-speed brain, ntfy, Gmail/Calendar read-only via MCP, bare web page for the mic.
+**In MVP:** Python, hands-free voice (own loop, no Pipecat), termusic tools, fast router, two-speed brain, ntfy, Gmail/Calendar read-only via MCP.
 **Not in MVP:** Go gateway, Rust body, React UI, wake word, memory, gesture, ESP32.
 
 ## MVP steps
@@ -13,9 +13,9 @@ Each step runs on its own. Tick when done.
 
 - [x] **0. Spike / verify (partly).** Pipecat 1.16.0 installs and imports on Python 3.12 / Windows. Ships services for Groq (LLM, STT, TTS), Google (LLM, STT, TTS), Anthropic, Fish, Piper, Kokoro, Whisper, plus `smallwebrtc` and `local` transports and Silero VAD. No built-in Edge TTS: write a small custom TTS service. Still to verify: live latency, Fish free-tier limits, Hermes decision, local audio transport on this PC (PyAudio).
 - [x] **1. Text brain.** `src/evie` package, `uv run evie`. Gemini (free) or Claude talker with own tool loop and `ToolRegistry`. Done when: type "what time is it", a tool answers.
-- [ ] **2. Termusic tools.** Copy `player.proto`, generate grpcio stubs. Tools: pause/play (check state first), next, previous, volume up/down, add to queue, clear, what's playing. Name to track via local search then `yt-dlp ytsearch1:`. Done when: type "add X, next, volume up" and music reacts.
+- [x] **2. Termusic tools.** Copy `player.proto`, generate grpcio stubs. Tools: pause/play (check state first), next, previous, volume up/down, add to queue, clear, what's playing. Name to track via local search then `yt-dlp ytsearch1:`. Done when: type "add X, next, volume up" and music reacts.
 - [x] **3. Fast router.** Local regex for music and volume, LLM fallback. Done when: "next" returns in <100 ms with no LLM call. (Built; "volume up N", mute and a live latency check are not done yet.)
-- [ ] **4. Voice.** Pipecat: Silero VAD, STT, TTS, push-to-talk, barge-in. Duck music while listening. Done when: step 3 works by voice. (In progress: spoken replies done via `EVIE_SPEAK=1`; push-to-talk and speech-to-text next.)
+- [~] **4. Voice.** Built (own simple loop, Pipecat not used): hands-free mic with a loudness gate, on-device Whisper STT (multilingual, Hinglish) with Groq backup, Kokoro local TTS with Edge fallback, streamed print-and-speak replies, stage timers. Done when: step 3 works by voice (it does). **Still open:** duck/pause music while listening (4.4), STT accuracy on the user's voice (run `scripts/stt_compare.py`), wake word or hotkey and mute, barge-in, gaming mode, Rust ear.
 - [ ] **5. Two-speed brain.** Fast model talks. Heavy agent runs in background via `TaskManager` (JSON state, cancel). `notify()` to toast and ntfy. Done when: long task ends, phone buzzes.
 - [ ] **6. MCP.** Gmail and Calendar, read-only. Done when: "any unread mail?" works.
 
@@ -23,7 +23,7 @@ Each step runs on its own. Tick when done.
 
 ## Detailed plan
 
-Tasks, files and done criteria per step: [plan.md](plan.md). Current step: **2, termusic tools**.
+Tasks, files and done criteria per step: [plan.md](plan.md). Current step: **4, voice tuning**, then 5 (background tasks) and 6 (mail/calendar). See `.claude/CLAUDE.md` for the suggested order.
 
 ## After MVP
 
