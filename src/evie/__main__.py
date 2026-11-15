@@ -1,6 +1,8 @@
 import sys
 
+from evie import config
 from evie.core.agent import Agent
+from evie.services import tts
 
 
 def main():
@@ -14,7 +16,13 @@ def main():
         except (EOFError, KeyboardInterrupt):
             break
         if line:
-            print(agent.respond(line))
+            reply = agent.respond(line)
+            print(reply)
+            if config.SPEAK:
+                try:
+                    tts.speak(reply)
+                except tts.TtsError as e:
+                    print(f"[voice] {e}")
 
 
 if __name__ == "__main__":
