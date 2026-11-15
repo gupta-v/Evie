@@ -63,3 +63,33 @@ def test_synth_failure_is_speakable():
 
     with pytest.raises(tts.TtsError):
         tts.speak("hello", synth=boom, play=lambda p: None)
+
+
+def test_falls_back_to_the_next_backend(monkeypatch):
+    from evie.utils import config
+
+    def broken(text, path):
+        raise FileNotFoundError
+
+    def edge(text, path):
+        open(path, "wb").write(b"edge")
+
+    monkeypatch.setattr(config, "TTS_ORDER", ["kokoro", "edge"])
+    monkeypatch.setattr(tts, "_BACKENDS", {"kokoro": (".wav", broken), "edge": (".mp3", edge)})
+    played = []
+    tts.speak("Hello there.", play=lambda p: played.append((p[-4:], open(p, "rb").read())))
+    assert played == [(".mp3", b"edge")]
+
+
+def test_all_backends_failing_is_one_speakable_error(monkeypatch):
+    import pytest
+
+    from evie.utils import config
+
+    def broken(text, path):
+        raise OSError
+
+    monkeypatch.setattr(config, "TTS_ORDER", ["kokoro", "edge"])
+    monkeypatch.setattr(tts, "_BACKENDS", {"kokoro": (".wav", broken), "edge": (".mp3", broken)})
+    with pytest.raises(tts.TtsError):
+        tts.speak("Hello.", play=lambda p: None)
